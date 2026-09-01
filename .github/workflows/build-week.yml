@@ -1,0 +1,122 @@
+name: Build week
+
+on:
+  schedule:
+    # Hourly, Tuesday through Sunday. Lines move all week and injury reports
+    # land Wed/Thu/Fri, so a daily build would leave stale numbers on the
+    # writer's screen. GitHub may delay scheduled runs under load; the pipeline
+    # is idempotent, so a missed hour costs nothing but freshness.
+    #
+    # Scheduled runs always target STAGING. Production is opt-in via
+    # workflow_dispatch until launch.
+    - cron: "0 * * * 0,2,3,4,5,6"
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which site to write to
+        type: choice
+        options: [staging, production]
+        default: staging
+      season:
+        description: Season
+        required: true
+        default: "2026"
+      week:
+        description: Week number, or "auto"
+        required: true
+        default: "auto"
+      push:
+        description: Push to WordPress (uncheck for a dry run)
+        type: boolean
+        default: true
+      odds:
+        description: Odds source
+        type: choice
+        options: [replay, live, nflverse]
+        default: replay
+
+concurrency:
+  # Never let two builds race each other into the same week's rows. Keyed by
+  # environment so a manual production run cannot be cancelled by the staging
+  # cron, or vice versa.
+  group: build-week-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Selects which WP_SITE_URL and TRINITY_RUNDOWN_TOKEN the job can see.
+    # Each site has its own token, so a mistyped URL cannot write to the
+    # wrong database -- the token would simply be rejected.
+    environment: ${{ inputs.environment || 'staging' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Confirm the target is reachable
+        # Fail here rather than after spending API credits and build time.
+        # Skipped for a dry run, which never contacts WordPress.
+        if: inputs.push != 'false'
+        env:
+          TRINITY_RUNDOWN_TOKEN: ${{ secrets.TRINITY_RUNDOWN_TOKEN }}
+          WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
+        run: python -m pipeline.push --health
+
+      - name: Build and push
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          TRINITY_RUNDOWN_TOKEN: ${{ secrets.TRINITY_RUNDOWN_TOKEN }}
+          WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
+          ODDS_BOOK: ${{ vars.ODDS_BOOK || 'draftkings' }}
+          SEASON: ${{ inputs.season || '2026' }}
+          WEEK: ${{ inputs.week || 'auto' }}
+          TARGET: ${{ inputs.environment || 'staging' }}
+          ODDS_MODE: ${{ inputs.odds || '' }}
+          DO_PUSH: ${{ inputs.push }}
+        run: |
+          set -euo pipefail
+          ARGS=(--season "$SEASON" --week "$WEEK")
+
+          # A scheduled run has no inputs, so both defaults apply: push, and
+          # let the environment decide the odds source.
+          if [ "$DO_PUSH" = "false" ]; then
+            ARGS+=(--dry-run)
+          else
+            ARGS+=(--push)
+          fi
+
+          # Staging replays a committed fixture: no credits, and identical
+          # numbers between runs so a diff means a real change.
+          MODE="$ODDS_MODE"
+          if [ -z "$MODE" ]; then
+            if [ "$TARGET" = "production" ]; then MODE=live; else MODE=replay; fi
+          fi
+
+          case "$MODE" in
+            replay)   ARGS+=(--replay-odds) ;;
+            nflverse) ARGS+=(--no-odds-api) ;;
+            live)     ;;
+          esac
+
+          echo "Target: $TARGET | odds: $MODE"
+          python -m pipeline.build_week "${ARGS[@]}"
+
+      - name: Keep the payload for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payload-${{ inputs.environment || 'staging' }}
+          path: build/*.json
+          if-no-files-found: ignore
+          retention-days: 14

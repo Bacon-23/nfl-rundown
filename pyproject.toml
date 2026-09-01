@@ -1,0 +1,33 @@
+[project]
+name = "nfl-rundown"
+version = "0.1.0"
+description = "Weekly NFL matchup dashboards for the Trinity Analytics Rundown."
+requires-python = ">=3.12"
+
+# nflreadpy is pinned rather than floated: it tracks nflverse's upstream
+# parquet schemas, and an unannounced column rename upstream would otherwise
+# break a Sunday-morning build. Bump it deliberately, with the golden tests.
+dependencies = [
+    "nflreadpy==0.1.5",
+    "polars>=1.43,<2",
+    "pydantic>=2.13,<3",
+    "httpx>=0.28,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "respx>=0.22",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["pipeline/tests"]
+filterwarnings = ["error::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

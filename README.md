@@ -1,0 +1,193 @@
+# The NFL Rundown
+
+Weekly NFL matchup dashboards for Trinity Analytics. A Python pipeline computes
+every number from public data plus The Odds API and pushes it to WordPress; a
+plugin gives the writer one screen to add commentary and publish.
+
+Full design: [`docs/plan.md`](docs/plan.md). Metric definitions:
+[`docs/metrics.md`](docs/metrics.md).
+
+## How it fits together
+
+```
+GitHub Actions (hourly, Tue-Sun)
+        |
+        |  build_week.py  — nflverse + Odds API + ESPN + Open-Meteo
+        v
+  week payload (JSON)
+        |
+        |  POST /wp-json/trinity-rundown/v1/week   (bearer token)
+        v
+WordPress  ->  wp_trinity_rundown_games  ->  [rundown_week] shortcode
+                        ^
+                        |
+              writer adds notes in wp-admin, hits Publish, numbers freeze
+```
+
+The one rule that shapes everything: **the pipeline writes `stats_json`, humans
+write `notes_json` and `overrides_json`, and neither can overwrite the other.**
+A refresh can run mid-edit without eating a paragraph.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `pipeline/sources/` | One module per external feed. Each returns plain data, no formatting. |
+| `pipeline/metrics/` | Stat computation over nflverse play-by-play. |
+| `pipeline/schema.py` | The payload contract. Renaming a field here is a breaking change. |
+| `wordpress/trinity-rundown/` | The plugin. Auto-deploys via WordPress.com GitHub Deployments. |
+
+## Running the pipeline
+
+```bash
+python -m venv .venv && ./.venv/Scripts/pip install -e ".[dev]"   # Windows
+python -m venv .venv && ./.venv/bin/pip install -e ".[dev]"       # macOS/Linux
+
+# Build without touching WordPress or spending API credits
+python -m pipeline.build_week --season 2026 --week 1 --no-odds-api --dry-run
+
+# Build from the recorded odds fixture — no credits, identical every run
+python -m pipeline.build_week --season 2026 --week 1 --replay-odds --dry-run
+
+# Build with live odds, still without pushing
+python -m pipeline.build_week --season 2026 --week 1 --dry-run
+
+# The real thing
+python -m pipeline.build_week --season 2026 --week auto --push
+```
+
+`--week auto` resolves to whichever week holds the next kickoff, and stays on a
+week until its last game finishes — a Monday-nighter does not flip the build
+to next week while it is still being played.
+
+### Environment variables
+
+| Variable | Needed for | Notes |
+|---|---|---|
+| `ODDS_API_KEY` | live odds | Without it the build falls back to nflverse lines and warns. Not needed when replaying. |
+| `WP_SITE_URL` | `--push` | e.g. `https://example.com`, no trailing slash. |
+| `TRINITY_RUNDOWN_TOKEN` | `--push` | Must match the constant in that site's `wp-config.php`. |
+| `ODDS_BOOK` | optional | Defaults to `draftkings`. |
+
+## Two environments
+
+Staging and production are separate WordPress sites with separate databases and
+**separate tokens**. One token per site is deliberate: a mistyped `WP_SITE_URL`
+then fails loudly instead of quietly writing to the wrong database.
+
+| | Staging | Production |
+|---|---|---|
+| Plugin deploy | GitHub Deployments, automatic on push to `main` | GitHub Deployments, manual |
+| Scheduled builds | yes — the cron target | none until launch |
+| Odds | replayed from a committed fixture | live Odds API |
+| Secrets | GitHub Environment `staging` | GitHub Environment `production` |
+
+`WP_SITE_URL` and `TRINITY_RUNDOWN_TOKEN` live in **GitHub Environments**, not
+repo-level secrets, so a job only ever holds the credential for the site it
+declares. `ODDS_API_KEY` is repo-level, since one subscription serves both.
+
+> **Do not use WordPress.com's "Push to Production" sync.** Its dialog offers to
+> copy the database, which would overwrite live posts with staging content.
+> Plugin code reaches each site from git, independently.
+
+### Recording the odds fixture
+
+Staging replays a captured API response so test runs cost nothing and return
+the same numbers every time:
+
+```bash
+# Once, against the live API (~3 credits). Commit the result.
+python -m pipeline.build_week --season 2026 --week 1 --record-odds --dry-run
+
+# Thereafter
+python -m pipeline.build_week --season 2026 --week 1 --replay-odds --dry-run
+```
+
+Fixtures live in `pipeline/fixtures/` and never contain the API key.
+
+Replay joins events to games by team pair, exactly as the live path does. So a
+Week 1 fixture replayed in Week 5 would match nothing, every game would fall
+back to nflverse lines, and a broken parser would still look green. Replay
+therefore reports its match rate and **fails below 50%**:
+
+```
+Odds fixture problem: Odds fixture matched only 0/16 games
+(recorded 2026-08-24). It is stale -- re-record with --record-odds.
+```
+
+Re-record when the week rolls over.
+
+## WordPress setup
+
+Do all of this on **staging** first. Production repeats the same steps at
+launch with its own token.
+
+1. **Enable SSH** on the staging site (WordPress.com → Hosting → Overview).
+   That gives WP-CLI, which is both the debugging tool and the fallback ingest
+   path.
+2. **Generate a token** — `openssl rand -hex 32` — and add it to that site's
+   `wp-config.php` over SFTP, above the "stop editing" line:
+
+   ```php
+   define( 'TRINITY_RUNDOWN_TOKEN', '<the generated string>' );
+   ```
+
+3. Point WordPress.com GitHub Deployments at this repo, deploying
+   `wordpress/trinity-rundown` to `/wp-content/plugins/trinity-rundown`.
+   Staging deploys automatically from `main`; production stays manual.
+4. Activate **Trinity Rundown**. The table is created on activation, and on any
+   version bump thereafter (GitHub Deployments overwrites files without
+   reactivating, so the plugin re-checks on load).
+5. **Probe reachability from outside** — this is the step that decides whether
+   the REST push works at all, since a WordPress.com staging site's response to
+   anonymous requests is not documented:
+
+   ```bash
+   python -m pipeline.push --health
+   ```
+
+   Run it from CI rather than a laptop; the question is specifically whether
+   GitHub Actions can reach the site. Expect `ok: True`. A 503 means the
+   constant is missing, a 404 means the plugin is not active, and a hang or
+   redirect to a login means the site is gated — in which case switch to the
+   SSH transport, which sends the same payload through `wp rundown seed`.
+
+6. Put `[rundown_week season="2026" week="1"]` in the weekly post.
+
+### WP-CLI
+
+```bash
+wp rundown seed --file=build/2026-week-01.json   # load a payload with no pipeline
+wp rundown status --season=2026 --week=1         # what is stored, locked, noted
+wp rundown publish --season=2026 --week=1        # freeze the numbers
+wp rundown unlock --season=2026 --week=1         # let refreshes through again
+```
+
+## Tests
+
+```bash
+pytest -q
+```
+
+The odds suite runs against recorded HTTP fixtures, so it needs no API key and
+spends no credits. It covers the paths that matter when something is wrong:
+quota exhaustion, a rejected key, a network failure, a game the book has not
+posted, a team name that cannot be mapped (a hard error — a silently dropped
+game would publish a matchup with a blank line), and a stale replay fixture.
+
+PHP is linted in CI rather than locally, since the plugin only ever runs on
+WordPress.
+
+## Current state
+
+Landed: schedule, venue, odds with nflverse fallback, opening-line capture,
+record/replay, auto week detection, injuries, weather, the plugin's storage and
+render layers, and the two-environment workflow. 80 tests passing.
+
+Not yet verified: **no PHP has executed anywhere.** The plugin has had a
+delimiter-balance check only; `php -l` and WordPress coding standards run in
+CI, and staging is where the code first actually runs.
+
+Still to build: ATS/over-under records (Phase 1), the stat modules (Phase 2),
+the writer's admin screen (Phase 3), the visual pass against the mockup
+(Phase 4).

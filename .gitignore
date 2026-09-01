@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Pipeline output
+build/
+
+# nflverse local cache
+.cache/
+nflreadpy_cache/
+
+# Secrets — never commit
+.env
+*.key
+
+# OS
+Thumbs.db
+.DS_Store

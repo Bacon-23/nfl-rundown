@@ -1,0 +1,342 @@
+/*
+ * Trinity Rundown — front-end styles.
+ *
+ * Phase 0: structural only. Phase 4 does the visual pass against the mockup.
+ * Everything is scoped under .trun-* so it cannot leak into the theme.
+ *
+ * Colors come through as custom properties set per game from teamcolors.csv;
+ * the fallbacks here keep the page readable if a color is missing.
+ */
+
+.trun-week {
+	--trun-away: #4a5568;
+	--trun-home: #2d3748;
+	--trun-border: color-mix(in srgb, currentColor 15%, transparent);
+	--trun-muted: color-mix(in srgb, currentColor 65%, transparent);
+	--trun-gap: 1rem;
+
+	container-type: inline-size;
+}
+
+/* ---------- Week at a glance ---------- */
+
+.trun-glance {
+	width: 100%;
+	border-collapse: collapse;
+	margin-block-end: 2rem;
+	font-size: 0.9375rem;
+}
+
+.trun-glance th,
+.trun-glance td {
+	padding: 0.5rem 0.75rem;
+	text-align: left;
+	border-block-end: 1px solid var(--trun-border);
+}
+
+.trun-glance thead th {
+	font-size: 0.75rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--trun-muted);
+}
+
+.trun-glance tbody th {
+	font-weight: 600;
+}
+
+/* ---------- Game panels ---------- */
+
+.trun-game {
+	border: 1px solid var(--trun-border);
+	border-radius: 8px;
+	margin-block-end: var(--trun-gap);
+	overflow: hidden;
+}
+
+.trun-game__summary {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.25rem 1rem;
+	padding: 0.875rem 1rem;
+	cursor: pointer;
+	font-weight: 600;
+	/* A 4px rule in the home team's color, so panels are scannable by team. */
+	border-inline-start: 4px solid var(--trun-home);
+}
+
+.trun-game__summary:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: -2px;
+}
+
+.trun-game__teams {
+	flex: 1 1 auto;
+}
+
+.trun-game__line,
+.trun-game__kick {
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
+	color: var(--trun-muted);
+	font-size: 0.875rem;
+}
+
+.trun-game__body {
+	padding: 0 1rem 1rem;
+}
+
+/* ---------- Odds bar ---------- */
+
+.trun-oddsbar {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+	gap: 1px;
+	background: var(--trun-border);
+	border: 1px solid var(--trun-border);
+	border-radius: 6px;
+	overflow: hidden;
+	margin-block: 1rem 1.5rem;
+}
+
+.trun-oddsbar__cell {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	padding: 0.75rem;
+	background: Canvas;
+}
+
+.trun-oddsbar__label {
+	font-size: 0.6875rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--trun-muted);
+}
+
+.trun-oddsbar__value {
+	font-size: 1.125rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Editorial ---------- */
+
+.trun-notes {
+	margin-block: 1.5rem;
+}
+
+.trun-notes__heading {
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--trun-muted);
+	margin-block-end: 0.5rem;
+}
+
+.trun-footer {
+	font-size: 0.8125rem;
+	color: var(--trun-muted);
+	margin-block-start: 2rem;
+}
+
+.trun-empty {
+	padding: 1rem;
+	border: 1px dashed var(--trun-border);
+	border-radius: 6px;
+	color: var(--trun-muted);
+}
+
+/* ---------- Tabs (JS enhancement, wide screens only) ---------- */
+
+.trun-week[data-tabs="on"] .trun-tablist {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+	margin-block-end: 1rem;
+	border-block-end: 1px solid var(--trun-border);
+}
+
+.trun-week[data-tabs="on"] .trun-tab {
+	padding: 0.5rem 0.875rem;
+	border: 0;
+	background: none;
+	cursor: pointer;
+	font: inherit;
+	font-size: 0.875rem;
+	border-block-end: 2px solid transparent;
+}
+
+.trun-week[data-tabs="on"] .trun-tab[aria-selected="true"] {
+	border-block-end-color: currentColor;
+	font-weight: 600;
+}
+
+.trun-week[data-tabs="on"] .trun-game > .trun-game__summary {
+	display: none;
+}
+
+.trun-week[data-tabs="on"] .trun-game[hidden] {
+	display: none;
+}
+
+/* ---------- Narrow screens: tables become stacked cards ---------- */
+
+@container (max-width: 640px) {
+	.trun-glance thead {
+		display: none;
+	}
+
+	.trun-glance tr {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.125rem 0.75rem;
+		padding-block: 0.625rem;
+		border-block-end: 1px solid var(--trun-border);
+	}
+
+	.trun-glance th,
+	.trun-glance td {
+		border: 0;
+		padding: 0;
+	}
+
+	.trun-glance tbody th {
+		grid-column: 1 / -1;
+	}
+}
+
+/* ---------- Print ---------- */
+
+@media print {
+	.trun-game {
+		break-inside: avoid;
+		border-color: #999;
+	}
+
+	.trun-game[open] .trun-game__summary,
+	.trun-game__summary {
+		list-style: none;
+	}
+
+	/* Expand everything — a printed page cannot be clicked open. */
+	.trun-game:not([open]) .trun-game__body {
+		display: block;
+	}
+
+	.trun-week[data-tabs="on"] .trun-game[hidden] {
+		display: block;
+	}
+}
+
+/* ---------- Stat modules ---------- */
+
+.trun-module {
+	margin-block: 1.75rem;
+}
+
+.trun-module__heading {
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--trun-muted);
+	margin-block-end: 0.625rem;
+}
+
+.trun-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.9375rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.trun-table th,
+.trun-table td {
+	padding: 0.5rem 0.625rem;
+	text-align: left;
+	border-block-end: 1px solid var(--trun-border);
+	vertical-align: baseline;
+}
+
+.trun-table thead th {
+	font-size: 0.6875rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	font-weight: 600;
+	color: var(--trun-muted);
+}
+
+.trun-table tbody th {
+	font-weight: 600;
+}
+
+.trun-table__team {
+	font-weight: 600;
+	font-size: 0.8125rem;
+	color: var(--trun-muted);
+}
+
+/*
+ * Status carries weight, not just hue: the word itself is always the signal,
+ * so this reads correctly in greyscale and to anyone who cannot separate the
+ * colors.
+ */
+.trun-status {
+	font-weight: 600;
+}
+
+.trun-status--out,
+.trun-status--injured-reserve {
+	color: #b3261e;
+}
+
+.trun-status--doubtful {
+	color: #a15c00;
+}
+
+.trun-status--questionable {
+	color: #6b5900;
+}
+
+@media (prefers-color-scheme: dark) {
+	.trun-status--out,
+	.trun-status--injured-reserve {
+		color: #f2b8b5;
+	}
+
+	.trun-status--doubtful {
+		color: #f5c164;
+	}
+
+	.trun-status--questionable {
+		color: #e0cd7a;
+	}
+}
+
+/* Narrow screens: the injury table reflows into one card per player. */
+@container (max-width: 640px) {
+	.trun-table--injuries thead {
+		display: none;
+	}
+
+	.trun-table--injuries tr {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		gap: 0.125rem 0.5rem;
+		padding-block: 0.625rem;
+		border-block-end: 1px solid var(--trun-border);
+	}
+
+	.trun-table--injuries th,
+	.trun-table--injuries td {
+		border: 0;
+		padding: 0;
+	}
+
+	.trun-table--injuries td:last-child {
+		grid-column: 1 / -1;
+		color: var(--trun-muted);
+		font-size: 0.875rem;
+	}
+}
