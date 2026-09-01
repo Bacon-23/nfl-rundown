@@ -181,13 +181,16 @@ WordPress.
 ## Current state
 
 Landed: schedule, venue, odds with nflverse fallback, opening-line capture,
-record/replay, auto week detection, injuries, weather, the plugin's storage and
-render layers, and the two-environment workflow. 80 tests passing.
+record/replay, auto week detection, injuries, weather, ATS/over-under records,
+the plugin's storage and render layers, and the two-environment workflow.
+105 tests passing.
 
 Not yet verified: **no PHP has executed anywhere.** The plugin has had a
 delimiter-balance check only; `php -l` and WordPress coding standards run in
 CI, and staging is where the code first actually runs.
 
-Still to build: ATS/over-under records (Phase 1), the stat modules (Phase 2),
-the writer's admin screen (Phase 3), the visual pass against the mockup
-(Phase 4).
+Still to build: the writer's admin screen (Phase 3) -- the largest gap, since
+without it no commentary can be entered at all -- the stat modules (Phase 2),
+and the visual pass against the mockup (Phase 4). The odds fixture in
+`pipeline/fixtures/` has not been recorded yet, so the staging cron cannot run
+until it is.

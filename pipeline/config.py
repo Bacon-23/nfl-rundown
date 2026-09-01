@@ -72,6 +72,16 @@ PRIOR_SEASON_THROUGH_WEEK: Final[int] = 1
 #: "n = X games" badge so readers can weigh them.
 SMALL_SAMPLE_THROUGH_WEEK: Final[int] = 4
 
+
+def stats_season(season: int, week: int) -> int:
+    """Which season's completed games a stat module should read.
+
+    Week 1 has no current-season results at all, so every module falls back to
+    the prior season and is badged accordingly. Keeping the rule here rather
+    than in each module means the cutover moves in one place.
+    """
+    return season - 1 if week <= PRIOR_SEASON_THROUGH_WEEK else season
+
 # --------------------------------------------------------------------------
 # WordPress
 # --------------------------------------------------------------------------

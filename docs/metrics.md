@@ -65,14 +65,26 @@ a writer knows whether they are quoting a market or an inference.
 
 ### ATS and over/under records
 
-**Not yet implemented.**
-
-Computed from completed games in nflverse:
+Computed in `pipeline/metrics/records.py` from completed games in nflverse:
 
 - **ATS**: compare `result` (home score minus away score) against
   `spread_line`. Equal is a push, counted separately, never as a win.
 - **O/U**: compare `total` (combined points) against `total_line`. Equal is a
   push.
+
+nflverse's `spread_line` is home-relative and positive when the home team is
+favored, so the home side covers when the margin exceeds it. That convention is
+asserted in the unit tests and was confirmed against the 2025 season, where
+favorites win outright about two thirds of the time on both sides of the sign.
+
+**Regular season only.** Weeks 19 and up are the playoffs; a deep run would
+otherwise inflate a record badged "2025 season" past what every other site
+publishes.
+
+Rendered as `12-5`, or `9-7-1` when a game pushed. A team with no completed
+games is left empty rather than shown as `0-0`, which reads as a real record.
+Week 1 shows the prior season's records, since the current one has none --
+the cutover lives in `config.stats_season()`.
 
 ---
 

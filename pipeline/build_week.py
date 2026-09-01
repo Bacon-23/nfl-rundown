@@ -18,6 +18,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from pipeline import config
+from pipeline.metrics import records as records_metric
+from pipeline.metrics.records import TeamRecords
 from pipeline.schema import Game, Kickoff, Team, WeekPayload
 from pipeline.sources import injuries as injuries_source
 from pipeline.sources import odds as odds_source
@@ -114,6 +116,14 @@ def _attach_modules(
     for game_id, forecast in forecasts.items():
         by_id[game_id].weather = forecast
 
+    # --- ATS and over/under records ----------------------------------------
+    # Week 1 reads last season, which is the only place completed games exist.
+    records_season = config.stats_season(season, week)
+    try:
+        _attach_records(built, records_metric.load_records(records_season))
+    except Exception as exc:  # noqa: BLE001 - one module must not sink the page
+        warnings.append(f"Season records unavailable ({records_season}): {exc}")
+
     # --- Injuries ----------------------------------------------------------
     teams = {g.away for g in scheduled} | {g.home for g in scheduled}
 
@@ -136,6 +146,22 @@ def _attach_modules(
         )
 
     return warnings
+
+
+def _attach_records(built: list[Game], records: dict[str, TeamRecords]) -> None:
+    """Write each side's ATS and over/under record onto the built game.
+
+    A team the tally never saw, or one whose record is empty, is left as None
+    rather than "0-0" -- the renderer shows a dash, which is honest, where
+    "0-0" reads as a real record of no games won.
+    """
+    for game in built:
+        for team in (game.away, game.home):
+            record = records.get(team.abbr)
+            if record is None:
+                continue
+            team.ats_record = str(record.ats) or None
+            team.ou_record = str(record.ou) or None
 
 
 # ---------------------------------------------------------------------------
