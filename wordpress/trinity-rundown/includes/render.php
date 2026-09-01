@@ -107,12 +107,30 @@ function trun_render_game( array $game, bool $open = false ): string {
  */
 function trun_render_odds_bar( array $game ): string {
 	$cells = [
-		[ 'label' => trun_get( $game, 'away.abbr', 'AWAY' ) . ' team total', 'value' => trun_get( $game, 'odds.away_team_total', '--' ) ],
-		[ 'label' => trun_get( $game, 'home.abbr', 'HOME' ) . ' team total', 'value' => trun_get( $game, 'odds.home_team_total', '--' ) ],
-		[ 'label' => 'Spread', 'value' => trun_spread_text( $game ) ],
-		[ 'label' => 'Total', 'value' => (string) trun_get( $game, 'odds.total', '--' ) ],
-		[ 'label' => 'Weather', 'value' => trun_get( $game, 'weather.summary', 'TBD' ) ],
-		[ 'label' => 'Kickoff', 'value' => trun_get( $game, 'kickoff.display', 'TBD' ) ],
+		[
+			'label' => trun_get( $game, 'away.abbr', 'AWAY' ) . ' team total',
+			'value' => trun_get( $game, 'odds.away_team_total', '--' ),
+		],
+		[
+			'label' => trun_get( $game, 'home.abbr', 'HOME' ) . ' team total',
+			'value' => trun_get( $game, 'odds.home_team_total', '--' ),
+		],
+		[
+			'label' => 'Spread',
+			'value' => trun_spread_text( $game ),
+		],
+		[
+			'label' => 'Total',
+			'value' => (string) trun_get( $game, 'odds.total', '--' ),
+		],
+		[
+			'label' => 'Weather',
+			'value' => trun_get( $game, 'weather.summary', 'TBD' ),
+		],
+		[
+			'label' => 'Kickoff',
+			'value' => trun_get( $game, 'kickoff.display', 'TBD' ),
+		],
 	];
 
 	ob_start();
@@ -171,7 +189,11 @@ function trun_render_injuries( array $game ): string {
 			</thead>
 			<tbody>
 			<?php foreach ( $rows as $row ) : ?>
-				<?php if ( ! is_array( $row ) || empty( $row['player'] ) ) : continue; endif; ?>
+				<?php
+				if ( ! is_array( $row ) || empty( $row['player'] ) ) :
+					continue;
+endif;
+				?>
 				<tr>
 					<td class="trun-table__team"><?php echo esc_html( $row['team'] ?? '' ); ?></td>
 					<th scope="row"><?php echo esc_html( $row['player'] ); ?></th>
@@ -258,6 +280,7 @@ function trun_render_footer( array $games ): string {
 
 	$parts = [];
 	if ( $book ) {
+		/* translators: %s: sportsbook the lines were taken from, e.g. DraftKings. */
 		$parts[] = sprintf( __( 'Odds: %s', 'trinity-rundown' ), $book );
 	}
 	if ( 'nflverse_fallback' === $source ) {
@@ -265,6 +288,7 @@ function trun_render_footer( array $games ): string {
 	}
 	if ( $as_of ) {
 		$parts[] = sprintf(
+			/* translators: %s: date and time of the last stats refresh. */
 			__( 'Stats as of %s UTC', 'trinity-rundown' ),
 			mysql2date( 'M j, Y g:i a', $as_of )
 		);
@@ -285,15 +309,15 @@ function trun_render_footer( array $games ): string {
  * Payloads arrive from an external pipeline, so every field is treated as
  * possibly absent -- a missing key renders a dash, never a PHP notice.
  */
-function trun_get( array $data, string $path, $default = '' ) {
+function trun_get( array $data, string $path, $fallback = '' ) {
 	$node = $data;
 	foreach ( explode( '.', $path ) as $segment ) {
 		if ( ! is_array( $node ) || ! array_key_exists( $segment, $node ) ) {
-			return $default;
+			return $fallback;
 		}
 		$node = $node[ $segment ];
 	}
-	return ( null === $node || '' === $node ) ? $default : $node;
+	return ( null === $node || '' === $node ) ? $fallback : $node;
 }
 
 function trun_matchup_label( array $game ): string {

@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<ruleset name="Trinity Rundown">
+	<description>
+		WordPress-Core, minus the two sniffs that fight conventions this
+		plugin already applies consistently. Everything else is enforced.
+	</description>
+
+	<file>wordpress</file>
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<rule ref="WordPress-Core">
+		<!--
+		The plugin header declares Requires PHP 8.1 and the codebase uses
+		short array syntax in all six files. This sniff predates that
+		minimum; honouring it would rewrite 59 literals across every file
+		to no benefit a reader would notice.
+		-->
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+
+		<!--
+		Files are named for what they hold: storage.php, render.php,
+		rest-ingest.php. The class-file convention exists so WordPress can
+		autoload by filename, but trinity-rundown.php loads every include
+		with an explicit require_once, so the rename would buy nothing.
+		-->
+		<exclude name="WordPress.Files.FileName"/>
+	</rule>
+</ruleset>

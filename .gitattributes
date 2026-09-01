@@ -1,0 +1,7 @@
+# This plugin runs on a Linux host, and CI lints the working tree directly.
+# Without eol=lf a Windows checkout carries CRLF, which fails
+# Generic.Files.LineEndings locally while passing in CI -- the same commit,
+# two verdicts, and the difference invisible in a diff.
+* text=auto eol=lf
+
+NFL_Rundown_Mockup.docx binary

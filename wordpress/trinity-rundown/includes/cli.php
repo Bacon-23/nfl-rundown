@@ -45,7 +45,11 @@ class TRUN_CLI {
 
 		$season = (int) $payload['season'];
 		$week   = (int) $payload['week'];
-		$counts = [ 'inserted' => 0, 'updated' => 0, 'openers' => 0 ];
+		$counts = [
+			'inserted' => 0,
+			'updated'  => 0,
+			'openers'  => 0,
+		];
 
 		foreach ( (array) $payload['games'] as $i => $game ) {
 			if ( empty( $game['game_id'] ) ) {
@@ -55,12 +59,12 @@ class TRUN_CLI {
 			$game['sort_order'] = $game['sort_order'] ?? $i;
 
 			$action = TRUN_Storage::upsert_stats( $season, $week, $game );
-			$counts[ $action ]++;
+			++$counts[ $action ];
 
 			if ( ! empty( $game['odds'] ) && is_array( $game['odds'] ) ) {
 				$opener = trun_extract_opener( $game['odds'] );
 				if ( $opener && TRUN_Storage::set_opening_line_once( $season, $week, $game['game_id'], $opener ) ) {
-					$counts['openers']++;
+					++$counts['openers'];
 				}
 			}
 		}
@@ -139,7 +143,7 @@ class TRUN_CLI {
 		$table = [];
 
 		foreach ( $rows as $row ) {
-			$notes = json_decode( (string) $row->notes_json, true );
+			$notes   = json_decode( (string) $row->notes_json, true );
 			$table[] = [
 				'game_id'    => $row->game_id,
 				'locked'     => $row->locked ? 'yes' : 'no',

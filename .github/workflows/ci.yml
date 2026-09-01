@@ -52,6 +52,13 @@ jobs:
 
       - name: WordPress coding standards
         run: |
+          # Composer 2.2+ blocks plugins it has not been told to trust, and
+          # --no-interaction turns that block into a hard failure rather than
+          # a prompt. The installer plugin is what wires WPCS into phpcs, so
+          # without this the next command dies before installing anything.
+          composer global config --no-plugins \
+            allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+
           composer global require --quiet --no-interaction \
             squizlabs/php_codesniffer wp-coding-standards/wpcs \
             dealerdirect/phpcodesniffer-composer-installer

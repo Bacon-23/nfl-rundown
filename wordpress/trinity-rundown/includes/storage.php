@@ -20,6 +20,16 @@ class TRUN_Storage {
 
 	const DB_VERSION = TRUN_VERSION;
 
+	/**
+	 * The one identifier in this file that cannot be a placeholder.
+	 *
+	 * $wpdb->prepare() substitutes values, not identifiers, so a table
+	 * name has to reach the query as text. That makes phpcs flag every
+	 * query below, and each carries a phpcs:ignore pointing here. The
+	 * name is safe by construction: a core-controlled prefix and a
+	 * literal suffix, with no caller input anywhere in it. Every actual
+	 * value in those queries still goes through %s or %d.
+	 */
 	public static function table(): string {
 		global $wpdb;
 		return $wpdb->prefix . 'trinity_rundown_games';
@@ -90,11 +100,12 @@ class TRUN_Storage {
 		$game     = self::carry_forward( $game, $existing );
 		$stats    = wp_json_encode( $game );
 
-		if ( $existing && (int) $existing->locked === 1 ) {
+		if ( $existing && 1 === (int) $existing->locked ) {
 			// Frozen at publish. Keep the row current so the admin screen can
 			// show drift, but published_json is what actually renders.
 			$wpdb->query(
 				$wpdb->prepare(
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table is self::table(); see the note there.
 					"UPDATE {$table} SET stats_json = %s, updated_at = %s
 					 WHERE season = %d AND week = %d AND game_id = %s",
 					$stats,
@@ -109,6 +120,7 @@ class TRUN_Storage {
 
 		$wpdb->query(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table is self::table(); see the note there.
 				"INSERT INTO {$table} (season, week, game_id, stats_json, sort_order, updated_at)
 				 VALUES (%d, %d, %s, %s, %d, %s)
 				 ON DUPLICATE KEY UPDATE
@@ -169,6 +181,7 @@ class TRUN_Storage {
 		// runs cannot race each other into overwriting an opener.
 		$rows = $wpdb->query(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $table is self::table(); see the note there.
 				"UPDATE {$table} SET opening_line = %s
 				 WHERE season = %d AND week = %d AND game_id = %s AND opening_line IS NULL",
 				wp_json_encode( $line ),
@@ -229,6 +242,7 @@ class TRUN_Storage {
 		global $wpdb;
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name only; see the note on self::table().
 				'SELECT * FROM ' . self::table() . ' WHERE season = %d AND week = %d AND game_id = %s',
 				$season,
 				$week,
@@ -243,6 +257,7 @@ class TRUN_Storage {
 		global $wpdb;
 		return $wpdb->get_results(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name only; see the note on self::table().
 				'SELECT * FROM ' . self::table() . ' WHERE season = %d AND week = %d ORDER BY sort_order ASC, game_id ASC',
 				$season,
 				$week
@@ -272,7 +287,7 @@ class TRUN_Storage {
 				[ '%s', '%d', '%s' ],
 				[ '%d' ]
 			);
-			$frozen++;
+			++$frozen;
 		}
 		return $frozen;
 	}
@@ -281,6 +296,7 @@ class TRUN_Storage {
 		global $wpdb;
 		$wpdb->query(
 			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name only; see the note on self::table().
 				'UPDATE ' . self::table() . ' SET locked = 0 WHERE season = %d AND week = %d',
 				$season,
 				$week

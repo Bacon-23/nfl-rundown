@@ -119,10 +119,10 @@ function trun_rest_ingest_week( WP_REST_Request $request ) {
 	}
 
 	$result = [
-		'inserted'       => 0,
-		'updated'        => 0,
-		'openers_set'    => 0,
-		'skipped'        => [],
+		'inserted'    => 0,
+		'updated'     => 0,
+		'openers_set' => 0,
+		'skipped'     => [],
 	];
 
 	foreach ( $games as $i => $game ) {
@@ -137,14 +137,14 @@ function trun_rest_ingest_week( WP_REST_Request $request ) {
 		$game['sort_order'] = $game['sort_order'] ?? $i;
 
 		$action = TRUN_Storage::upsert_stats( $season, $week, $game );
-		$result[ $action ]++;
+		++$result[ $action ];
 
 		// The opener is recorded from whatever the first successful run of the
 		// week happened to see, and never revised afterwards.
 		if ( ! empty( $game['odds'] ) && is_array( $game['odds'] ) ) {
 			$opener = trun_extract_opener( $game['odds'] );
 			if ( $opener && TRUN_Storage::set_opening_line_once( $season, $week, $game['game_id'], $opener ) ) {
-				$result['openers_set']++;
+				++$result['openers_set'];
 			}
 		}
 	}

@@ -48,6 +48,9 @@ function trun_register_assets(): void {
 		TRUN_URL . 'assets/rundown.js',
 		[],
 		TRUN_VERSION,
-		[ 'strategy' => 'defer', 'in_footer' => true ]
+		[
+			'strategy'  => 'defer',
+			'in_footer' => true,
+		]
 	);
 }

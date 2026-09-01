@@ -35,8 +35,11 @@ register_activation_hook( __FILE__, [ 'TRUN_Storage', 'install' ] );
  * GitHub Deployments overwrites plugin files without deactivating the plugin,
  * so the activation hook does not fire on deploy. This is the upgrade path.
  */
-add_action( 'plugins_loaded', function () {
-	if ( get_option( 'trun_db_version' ) !== TRUN_VERSION ) {
-		TRUN_Storage::install();
+add_action(
+	'plugins_loaded',
+	function () {
+		if ( get_option( 'trun_db_version' ) !== TRUN_VERSION ) {
+			TRUN_Storage::install();
+		}
 	}
-} );
+);
