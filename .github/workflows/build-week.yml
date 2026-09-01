@@ -45,6 +45,15 @@ concurrency:
 
 jobs:
   build:
+    # The schedule above goes live the moment this file lands on the default
+    # branch -- before the odds fixture is recorded or the environment secrets
+    # exist. Hold it until staging is genuinely ready by leaving CRON_ENABLED
+    # unset; set the repo variable to "true" to let the hourly cron through.
+    # Manual dispatch always runs, so the setup path stays testable meanwhile.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      vars.CRON_ENABLED == 'true'
+
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

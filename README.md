@@ -82,6 +82,15 @@ then fails loudly instead of quietly writing to the wrong database.
 | Odds | replayed from a committed fixture | live Odds API |
 | Secrets | GitHub Environment `staging` | GitHub Environment `production` |
 
+The hourly schedule is held behind a repo variable: the `build` job runs on a
+`schedule` trigger only when **`CRON_ENABLED`** is `true` (Settings → Secrets
+and variables → Actions → Variables). It starts unset, because the schedule
+would otherwise begin firing the moment the workflow reached `main` — before
+the odds fixture existed or staging had a token. Manual `workflow_dispatch`
+runs ignore the variable, so setup can be tested throughout. Turn it on once
+`python -m pipeline.push --health` returns `ok: True` from CI and the fixture
+is committed.
+
 `WP_SITE_URL` and `TRINITY_RUNDOWN_TOKEN` live in **GitHub Environments**, not
 repo-level secrets, so a job only ever holds the credential for the site it
 declares. `ODDS_API_KEY` is repo-level, since one subscription serves both.
