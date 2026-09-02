@@ -1,0 +1,45 @@
+# WordPress.com GitHub Deployments, advanced mode.
+#
+# The plugin is one directory inside a monorepo that also holds the Python
+# pipeline. WordPress.com's *simple* deployment mode has no source-directory
+# field -- it copies the whole branch to the destination -- which lands the
+# repo root at wp-content/plugins/trinity-rundown and leaves the plugin one
+# level too deep for WordPress to find. Advanced mode exists for exactly this:
+# WordPress.com runs this workflow and deploys the contents of the artifact it
+# produces, so the artifact root becomes the plugin root.
+#
+# Two names are load-bearing and neither is ours to choose: the workflow must
+# be named `wpcom` and the artifact must be named `wpcom`. WordPress.com looks
+# them up by those literal names; rename either and deployments stop happening
+# with no error on this side.
+
+name: wpcom
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Package the plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wpcom
+
+          # upload-artifact roots the archive at the common ancestor of the
+          # files it matches, so pointing at the plugin directory puts
+          # trinity-rundown.php, includes/ and assets/ at the artifact root --
+          # which is what WordPress unzips into the destination directory.
+          path: wordpress/trinity-rundown
+
+          # WordPress.com has no use for the artifact once the deploy lands,
+          # and these would otherwise accumulate against the repo's storage.
+          retention-days: 1
+
+          # A missing plugin directory means a broken deploy, not an empty one.
+          # Fail here rather than quietly shipping nothing to the site.
+          if-no-files-found: error
