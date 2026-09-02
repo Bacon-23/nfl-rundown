@@ -33,7 +33,7 @@ on:
       odds:
         description: Odds source
         type: choice
-        options: [replay, live, nflverse]
+        options: [replay, live, nflverse, record]
         default: replay
 
 concurrency:
@@ -118,14 +118,32 @@ jobs:
             if [ "$TARGET" = "production" ]; then MODE=live; else MODE=replay; fi
           fi
 
+          # `record` fetches live *and* writes the raw responses to
+          # pipeline/fixtures/, which the next step uploads. It is the only
+          # mode that spends credits without being a production build, so it
+          # is never a default -- a run has to ask for it by name.
           case "$MODE" in
             replay)   ARGS+=(--replay-odds) ;;
             nflverse) ARGS+=(--no-odds-api) ;;
+            record)   ARGS+=(--record-odds) ;;
             live)     ;;
           esac
 
           echo "Target: $TARGET | odds: $MODE"
           python -m pipeline.build_week "${ARGS[@]}"
+
+      - name: Keep the recorded odds fixture
+        # Recording costs real credits, so the fixture must survive the run
+        # even if a later step fails -- otherwise it has to be bought twice.
+        # Download this artifact and commit it to pipeline/fixtures/.
+        if: always() && inputs.odds == 'record'
+        uses: actions/upload-artifact@v4
+        with:
+          name: odds-fixture
+          path: pipeline/fixtures/*.json
+          # An empty artifact here would mean credits were spent for nothing.
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Keep the payload for inspection
         if: always()
