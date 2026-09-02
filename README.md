@@ -257,8 +257,9 @@ Staging paths, for later WP-CLI work: the site root is `/srv/htdocs`, which is
 **not** the SSH home directory (`/home/<id>`). Plugins live at
 `/srv/htdocs/wp-content/plugins/`.
 
+The week 1 odds fixture is recorded and replays 16/16, and the hourly staging
+cron is live as of 2026-09-02.
+
 Still to build: the writer's admin screen (Phase 3) -- the largest gap, since
 without it no commentary can be entered at all -- the stat modules (Phase 2),
-and the visual pass against the mockup (Phase 4). The odds fixture in
-`pipeline/fixtures/` has not been recorded yet, so the staging cron cannot run
-until it is.
+and the visual pass against the mockup (Phase 4).
