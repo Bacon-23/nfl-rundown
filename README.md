@@ -104,13 +104,22 @@ declares. `ODDS_API_KEY` is repo-level, since one subscription serves both.
 Staging replays a captured API response so test runs cost nothing and return
 the same numbers every time:
 
+Record it from CI rather than a workstation, so the API key stays in Actions
+secrets: dispatch **Build week** with `odds: record` and `push: false`, then
+download the `odds-fixture` artifact and commit it to `pipeline/fixtures/`.
+
+The equivalent locally, if the key is already in your environment:
+
 ```bash
-# Once, against the live API (~3 credits). Commit the result.
 python -m pipeline.build_week --season 2026 --week 1 --record-odds --dry-run
 
-# Thereafter
+# Thereafter -- no key needed, no credits spent
 python -m pipeline.build_week --season 2026 --week 1 --replay-odds --dry-run
 ```
+
+Recording costs roughly **19 credits** for a 16-game week, not the 3 a reading
+of the bulk endpoint suggests: 3 for the featured markets in one bulk call,
+plus one per game for `team_totals`, which is only available per event.
 
 Fixtures live in `pipeline/fixtures/` and never contain the API key.
 
