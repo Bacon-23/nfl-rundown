@@ -95,7 +95,7 @@ WP_REST_NAMESPACE: Final[str] = "trinity-rundown/v1"
 
 HTTP_TIMEOUT: Final[float] = 30.0
 HTTP_RETRIES: Final[int] = 3
-USER_AGENT: Final[str] = "trinity-rundown/0.1 (+https://github.com/trinity-analytics/nfl-rundown)"
+USER_AGENT: Final[str] = "trinity-rundown/0.1 (+https://github.com/Bacon-23/nfl-rundown)"
 
 ESPN_INJURIES_URL: Final[str] = (
     "https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries"
