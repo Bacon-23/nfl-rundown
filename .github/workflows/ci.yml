@@ -63,7 +63,7 @@ jobs:
             squizlabs/php_codesniffer wp-coding-standards/wpcs \
             dealerdirect/phpcodesniffer-composer-installer
           "$(composer global config bin-dir --absolute --quiet)/phpcs" \
-            --standard=WordPress-Core \
+            --standard=phpcs.xml.dist \
             --extensions=php \
             --report=checkstyle \
             wordpress | cs2pr --graceful-warnings

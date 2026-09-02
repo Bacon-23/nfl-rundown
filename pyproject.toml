@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "nfl-rundown"
 version = "0.1.0"
@@ -20,6 +24,13 @@ dev = [
     "respx>=0.22",
     "ruff>=0.6",
 ]
+
+# Without this, setuptools' flat-layout discovery finds two top-level
+# directories -- pipeline and wordpress -- and refuses to guess which is the
+# package. Only pipeline is Python; wordpress is the WordPress plugin and is
+# deployed from git, never packaged.
+[tool.setuptools.packages.find]
+include = ["pipeline*"]
 
 [tool.pytest.ini_options]
 testpaths = ["pipeline/tests"]
