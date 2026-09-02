@@ -141,9 +141,29 @@ launch with its own token.
    define( 'TRINITY_RUNDOWN_TOKEN', '<the generated string>' );
    ```
 
-3. Point WordPress.com GitHub Deployments at this repo, deploying
-   `wordpress/trinity-rundown` to `/wp-content/plugins/trinity-rundown`.
-   Staging deploys automatically from `main`; production stays manual.
+3. Connect WordPress.com GitHub Deployments to this repo, in **advanced
+   mode**, with destination `/wp-content/plugins/trinity-rundown`. Staging
+   deploys automatically from `main`; production stays manual.
+
+   Advanced mode is not optional here. There is no source-directory field
+   anywhere in the UI: *simple* mode copies the whole branch to the
+   destination, which lands the repo root at
+   `wp-content/plugins/trinity-rundown` and leaves the plugin one level too
+   deep for WordPress to detect. Advanced mode deploys the contents of the
+   artifact named `wpcom` instead, which is what
+   `.github/workflows/wpcom.yml` builds from `wordpress/trinity-rundown`.
+
+   Two things about connecting that are easy to be surprised by:
+
+   - **Connecting writes a commit to `main`.** WordPress.com generates
+     `.github/workflows/wpcom.yml` itself and pushes it, overwriting the
+     committed one. Its default uploads the entire repository as the
+     artifact. After connecting, check that the `path:` still reads
+     `wordpress/trinity-rundown` and restore it if not. On production this
+     commit lands on `main`, which auto-deploys staging.
+   - **Deploys merge, they do not replace.** Files from a previous deploy
+     survive in the destination. After fixing a bad deploy, delete the
+     directory on the server before redeploying.
 4. Activate **Trinity Rundown**. The table is created on activation, and on any
    version bump thereafter (GitHub Deployments overwrites files without
    reactivating, so the plugin re-checks on load).
@@ -160,6 +180,11 @@ launch with its own token.
    constant is missing, a 404 means the plugin is not active, and a hang or
    redirect to a login means the site is gated — in which case switch to the
    SSH transport, which sends the same payload through `wp rundown seed`.
+
+   **Answered for staging on 2026-09-02: the site does answer anonymous
+   requests**, and the probe returned `ok: True` from CI. The REST transport
+   works as designed and the SSH fallback was never needed. Production is a
+   different site and inherits nothing from this — re-run the probe there.
 
 6. Put `[rundown_week season="2026" week="1"]` in the weekly post.
 
@@ -213,8 +238,15 @@ already parameterised and only the table name is interpolated, which
 `prepare()` cannot substitute -- and are suppressed with a pointer to the
 explanation on `TRUN_Storage::table()`.
 
-Still true: **no PHP has been executed anywhere.** Parsing clean is not the
-same as running, and staging remains where this code first actually runs.
+**The plugin now runs.** On 2026-09-02 it was deployed to the staging site and
+activated: `TRUN_Storage::install()` created `wp_trinity_rundown_games`, the
+health probe returned `ok: True` from CI, and a `--no-odds-api` build pushed
+2026 week 1 over REST -- 16 inserted, 16 openers recorded. Anonymous requests
+reach the site, so the SSH transport was never needed.
+
+Staging paths, for later WP-CLI work: the site root is `/srv/htdocs`, which is
+**not** the SSH home directory (`/home/<id>`). Plugins live at
+`/srv/htdocs/wp-content/plugins/`.
 
 Still to build: the writer's admin screen (Phase 3) -- the largest gap, since
 without it no commentary can be entered at all -- the stat modules (Phase 2),
