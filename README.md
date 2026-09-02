@@ -184,8 +184,20 @@ quota exhaustion, a rejected key, a network failure, a game the book has not
 posted, a team name that cannot be mapped (a hard error — a silently dropped
 game would publish a matchup with a blank line), and a stale replay fixture.
 
-PHP is linted in CI rather than locally, since the plugin only ever runs on
-WordPress.
+PHP has no local toolchain requirement -- CI lints it on every push. To run
+the same two gates before pushing, in Docker:
+
+```bash
+# Syntax, on the version CI uses
+docker run --rm -v "$PWD/wordpress:/src:ro" php:8.2-cli   sh -c "find /src -name '*.php' -print0 | xargs -0 -n1 -P4 php -l"
+
+# WordPress coding standards, via the committed ruleset
+docker run --rm -v "$PWD:/repo:ro" -w /repo composer:2 sh -c   'composer global config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true &&    composer global require --quiet --no-interaction squizlabs/php_codesniffer      wp-coding-standards/wpcs dealerdirect/phpcodesniffer-composer-installer &&    $(composer global config bin-dir --absolute --quiet)/phpcs --standard=phpcs.xml.dist'
+```
+
+`phpcs.xml.dist` is WordPress-Core with two sniffs excluded: short array
+syntax, and class-file naming. Both fight conventions the plugin already
+applies consistently, and neither affects what runs.
 
 ## Current state
 
@@ -194,9 +206,15 @@ record/replay, auto week detection, injuries, weather, ATS/over-under records,
 the plugin's storage and render layers, and the two-environment workflow.
 105 tests passing.
 
-Not yet verified: **no PHP has executed anywhere.** The plugin has had a
-delimiter-balance check only; `php -l` and WordPress coding standards run in
-CI, and staging is where the code first actually runs.
+Verified since: all six plugin files pass `php -l` on PHP 8.2 and are clean
+under the WordPress-Core ruleset, both locally in Docker and in CI. The nine
+`WordPress.DB.PreparedSQL` findings were false positives -- every value is
+already parameterised and only the table name is interpolated, which
+`prepare()` cannot substitute -- and are suppressed with a pointer to the
+explanation on `TRUN_Storage::table()`.
+
+Still true: **no PHP has been executed anywhere.** Parsing clean is not the
+same as running, and staging remains where this code first actually runs.
 
 Still to build: the writer's admin screen (Phase 3) -- the largest gap, since
 without it no commentary can be entered at all -- the stat modules (Phase 2),
