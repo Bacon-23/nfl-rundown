@@ -1,3 +1,22 @@
+# WordPress.com GitHub Deployments, advanced mode.
+#
+# WordPress.com generated this file when the repository was connected, and
+# reconnecting would regenerate it -- so keep the shape it expects and change
+# only what has to change.
+#
+# What had to change is the artifact path. The generated default uploads the
+# whole repository, which is right for a repo that *is* a plugin and wrong
+# here: this is a monorepo whose plugin lives in one subdirectory, and simple
+# mode has no source-directory field to express that. Uploading only the plugin
+# directory is how a monorepo ships one subdirectory -- upload-artifact roots
+# the archive at the common ancestor of the files it matches, so
+# trinity-rundown.php, includes/ and assets/ land at the artifact root, which
+# is what WordPress unzips into the destination directory.
+#
+# The artifact name `wpcom` is load-bearing: WordPress.com looks it up by that
+# literal name and deploys its contents. The workflow name is not -- this one
+# is WordPress.com's own wording.
+
 name: Publish Website
 
 on:
@@ -5,17 +24,24 @@ on:
     branches:
       - main
   workflow_dispatch:
+
 jobs:
   Publish-Website:
     name: Publish-Website
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      # Pinned to a release tag rather than the generated @master, matching the
+      # other two workflows in this repo.
+      - uses: actions/checkout@v4
+
       - name: Upload the artifact
         uses: actions/upload-artifact@v4
         with:
           name: wpcom
-          path: |
-            .
-            !.git*
+          path: wordpress/trinity-rundown
           retention-days: 1
+
+          # A missing plugin directory means a broken deploy, not an empty one.
+          # Without this the artifact uploads empty and WordPress.com happily
+          # deploys nothing over a working plugin.
+          if-no-files-found: error
