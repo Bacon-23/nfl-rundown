@@ -7,8 +7,14 @@
 
 	<file>wordpress</file>
 	<arg name="extensions" value="php"/>
-	<arg name="colors"/>
-	<arg value="sp"/>
+
+	<!--
+	Sniff codes in reports, but deliberately no "p" and no colors: phpcs
+	writes the progress indicator to stdout, which is the same stream the
+	checkstyle report goes to, and CI pipes that straight into cs2pr. A
+	progress line there makes the XML unparseable.
+	-->
+	<arg value="s"/>
 
 	<rule ref="WordPress-Core">
 		<!--
