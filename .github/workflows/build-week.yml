@@ -76,7 +76,13 @@ jobs:
       - name: Confirm the target is reachable
         # Fail here rather than after spending API credits and build time.
         # Skipped for a dry run, which never contacts WordPress.
-        if: inputs.push != 'false'
+        #
+        # Compare the boolean input as a boolean. Against the string 'false'
+        # GitHub coerces both sides to numbers -- false becomes 0, 'false'
+        # becomes NaN -- and the inequality is then always true, so the probe
+        # used to run on dry runs too. A scheduled run carries no inputs at
+        # all and always pushes, so it is named explicitly.
+        if: github.event_name == 'schedule' || inputs.push
         env:
           TRINITY_RUNDOWN_TOKEN: ${{ secrets.TRINITY_RUNDOWN_TOKEN }}
           WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
