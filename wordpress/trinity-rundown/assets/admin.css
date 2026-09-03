@@ -1,0 +1,176 @@
+/*
+ * Trinity Rundown — admin screen.
+ *
+ * Functional only. This screen is a tool for one person, not a page readers
+ * see; Phase 4's visual pass is about the front end. What matters here is that
+ * sixteen games are scannable and the boxes are big enough to write in.
+ *
+ * Everything is scoped under .trun-adm and leans on core wp-admin styles for
+ * buttons, notices and inputs.
+ */
+
+.trun-adm__picker {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 1rem 0;
+}
+
+/* ---------- Week state and actions ---------- */
+
+.trun-adm__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.75rem 1rem;
+	margin-block-end: 1.5rem;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+}
+
+.trun-adm__state {
+	flex: 1 1 20rem;
+	margin: 0;
+}
+
+.trun-adm__badge {
+	display: inline-block;
+	padding: 0.1rem 0.5rem;
+	margin-inline-end: 0.5rem;
+	font-size: 0.75rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #1d2327;
+	background: #dcdcde;
+	border-radius: 2px;
+}
+
+.trun-adm__badge--locked {
+	color: #fff;
+	background: #2271b1;
+}
+
+/* ---------- One game ---------- */
+
+.trun-adm__game {
+	padding: 1rem 1.25rem 1.25rem;
+	margin-block-end: 1.25rem;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+}
+
+.trun-adm__head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.75rem;
+	padding-block-end: 0.5rem;
+	border-block-end: 1px solid #f0f0f1;
+}
+
+.trun-adm__title {
+	margin: 0;
+	font-size: 1.15rem;
+}
+
+.trun-adm__meta {
+	margin: 0;
+	color: #646970;
+}
+
+.trun-adm__sep {
+	margin: 0 0.25rem;
+	color: #c3c4c7;
+}
+
+/* Warnings the writer needs before publishing a number. */
+.trun-adm__flags {
+	margin: 0.75rem 0 0;
+	padding: 0.5rem 0.75rem 0.5rem 1.75rem;
+	list-style: disc;
+	background: #fcf9e8;
+	border-inline-start: 4px solid #dba617;
+}
+
+.trun-adm__flags li {
+	margin: 0.15rem 0;
+}
+
+/* ---------- What the pipeline currently says ---------- */
+
+.trun-adm__readout {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+	gap: 0.75rem;
+	margin: 1rem 0;
+	padding: 0.75rem;
+	background: #f6f7f7;
+	border-radius: 3px;
+}
+
+.trun-adm__cell {
+	min-width: 0;
+}
+
+.trun-adm__readout dt {
+	font-size: 0.7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: #646970;
+}
+
+.trun-adm__readout dd {
+	margin: 0.1rem 0 0;
+	font-size: 1rem;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Writing ---------- */
+
+.trun-adm__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	margin: 0 0 0.9rem;
+}
+
+.trun-adm__field label {
+	font-weight: 600;
+}
+
+.trun-adm__hint {
+	font-size: 0.8rem;
+	color: #646970;
+}
+
+.trun-adm__overrides {
+	margin-block-start: 0.5rem;
+	padding-block-start: 0.5rem;
+	border-block-start: 1px solid #f0f0f1;
+}
+
+.trun-adm__overrides summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.trun-adm__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+	gap: 0 1rem;
+	margin-block-start: 0.75rem;
+}
+
+.trun-adm__submit {
+	position: sticky;
+	bottom: 0;
+	padding: 0.75rem 0;
+	margin: 0;
+	background: #f0f0f1;
+	border-block-start: 1px solid #c3c4c7;
+}

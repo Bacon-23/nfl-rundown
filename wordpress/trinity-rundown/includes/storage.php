@@ -266,6 +266,23 @@ class TRUN_Storage {
 	}
 
 	/**
+	 * Every (season, week) pair that has rows, newest first.
+	 *
+	 * Drives the admin screen's week picker. Weeks appear here because the
+	 * pipeline pushed them, so the list is never empty on a live site and
+	 * never contains a week with nothing to edit.
+	 *
+	 * @return object[] Rows of {season, week, games}.
+	 */
+	public static function list_weeks(): array {
+		global $wpdb;
+		return $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name only; the query takes no values at all. See the note on self::table().
+			'SELECT season, week, COUNT(*) AS games FROM ' . self::table() . ' GROUP BY season, week ORDER BY season DESC, week DESC'
+		);
+	}
+
+	/**
 	 * Freeze a week: snapshot the merged view into published_json and lock it.
 	 *
 	 * @return int Number of games frozen.

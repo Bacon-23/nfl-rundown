@@ -206,6 +206,38 @@ wp rundown publish --season=2026 --week=1        # freeze the numbers
 wp rundown unlock --season=2026 --week=1         # let refreshes through again
 ```
 
+## The writer's screen
+
+**Rundown** in the wp-admin sidebar (capability `edit_posts`). One page, every
+game in the week, picked with the dropdown at the top.
+
+Per game it shows what the pipeline currently says -- spread, total, both team
+totals, weather, injury count -- and warns about anything the writer should
+know before publishing a number: lines that came from the nflverse fallback
+rather than the book, team totals derived from spread and total rather than
+posted, and a game that has never had injury data stored.
+
+Three boxes per game write `notes_json`: **Scouting Notes**, **Anytime TD
+Leans**, **Score Prediction**. Under **Corrections** are per-field overrides
+(`overrides_json`) for the odds and weather values. Each override box shows the
+pipeline's value as its placeholder, so an empty box visibly means "use the
+pipeline's number" -- and **clearing a box removes the correction** rather than
+blanking the field. That is why overrides are rebuilt from the form on every
+save instead of merged into what was stored before.
+
+**Save all games** writes both human columns for all 16 games at once. It never
+touches `stats_json`, so a pipeline run mid-edit cannot eat a paragraph.
+
+**Publish & freeze** copies the merged view into `published_json` and sets
+`locked = 1` -- the same thing `wp rundown publish` does. It does *not* create
+the weekly post: make the post yourself and paste in `[rundown_week]`. The
+plugin has no post-creation powers anywhere, admin screen included.
+
+While a week is locked the pipeline keeps updating `stats_json` in the
+background, so the live and published views drift apart silently. The screen
+says so per game -- "the pipeline has moved since this week was published" --
+and **Unlock** puts the page back on the live data.
+
 ## Tests
 
 ```bash
@@ -269,6 +301,12 @@ In particular, `opening_line` is captured by the first run of the week that
 actually executes, which may be well after the intended Tuesday slot; it is
 write-once, so it cannot be corrupted, only later than expected.
 
-Still to build: the writer's admin screen (Phase 3) -- the largest gap, since
-without it no commentary can be entered at all -- the stat modules (Phase 2),
-and the visual pass against the mockup (Phase 4).
+**The writer can now write.** Phase 3 landed 2026-09-03: `admin-week.php` puts
+all 16 games on one screen with notes, per-field corrections, and publish /
+unlock. It reuses `render.php`'s dot-path helpers rather than growing a second
+set, and `storage.php` gained one method -- `list_weeks()` -- to drive the week
+picker. All seven plugin files pass `php -l` on PHP 8.2 and the WordPress-Core
+ruleset.
+
+Still to build: the stat modules (Phase 2) and the visual pass against the
+mockup (Phase 4), then the production cutover (Phase 5).
