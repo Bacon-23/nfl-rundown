@@ -258,7 +258,16 @@ Staging paths, for later WP-CLI work: the site root is `/srv/htdocs`, which is
 `/srv/htdocs/wp-content/plugins/`.
 
 The week 1 odds fixture is recorded and replays 16/16, and the hourly staging
-cron is live as of 2026-09-02.
+cron is live as of 2026-09-02. The stats/editorial separation is verified
+against it: a note written into `notes_json` survived two unattended scheduled
+runs byte-identical.
+
+**The hourly schedule is best-effort.** Measured over the first four hours,
+GitHub delivered two of four scheduled runs, 31 and 47 minutes late. Nothing
+breaks -- the build is idempotent -- but do not read "hourly" as a guarantee.
+In particular, `opening_line` is captured by the first run of the week that
+actually executes, which may be well after the intended Tuesday slot; it is
+write-once, so it cannot be corrupted, only later than expected.
 
 Still to build: the writer's admin screen (Phase 3) -- the largest gap, since
 without it no commentary can be entered at all -- the stat modules (Phase 2),
