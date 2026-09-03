@@ -308,5 +308,23 @@ set, and `storage.php` gained one method -- `list_weeks()` -- to drive the week
 picker. All seven plugin files pass `php -l` on PHP 8.2 and the WordPress-Core
 ruleset.
 
+Walked end to end on staging the same day, through the UI rather than through a
+seeded payload:
+
+- Notes written on one game survived a dispatched pipeline run **byte-identical**
+  -- `MD5(notes_json)` unchanged while `updated_at` moved on all 16 rows, so the
+  run genuinely rewrote every row and still could not reach the editorial column.
+  This is the invariant the whole two-column design exists for.
+- A correction applied and then **cleared** restored the pipeline's value, which
+  is the path a stored empty string would have silently blanked.
+- Freeze holds: with the week locked, a correction saved in wp-admin did not
+  reach the page, and appeared the moment the week was unlocked. The published
+  page is genuinely served from `published_json`.
+
+The first front-end render also happened here. `[rundown_week]` had never been
+placed in a post before 2026-09-03, so nothing readers see had ever been
+exercised -- worth remembering when reading earlier "verified" notes, which all
+covered the pipeline and the database rather than the page.
+
 Still to build: the stat modules (Phase 2) and the visual pass against the
 mockup (Phase 4), then the production cutover (Phase 5).
