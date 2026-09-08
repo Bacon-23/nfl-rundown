@@ -525,8 +525,42 @@ it rewrites asset URLs to `?m=<deployed mtime>`, so the stylesheet busts on
 deploy by itself; `TRUN_VERSION` is still bumped on every release, because that
 is the handle this repo controls and production may not behave the same way.
 
-Still to do: the rehearsal itself, then the production cutover (Phase 5). One
-dated hazard sits in that window -- the odds fixture is per-week, so the hourly
-staging build fails the moment Week 2 opens without a re-recorded fixture. The
+**The end-to-end rehearsal ran on staging on 2026-09-08**, against live Week 1
+data, through the writer's screen rather than WP-CLI. Commentary and a weather
+override went into two games, the week was published, the pipeline was run
+against it, and the week was unlocked again.
+
+What it proves, measured on the public page rather than eyeballed:
+
+- **Editorial survives the pipeline.** Three pushes, each rewriting all 16 rows
+  (`0 inserted, 16 updated`), left the six note bodies byte-identical.
+- **The freeze holds against real movement.** Diffing the replayed payload
+  against a live one, **all 16 games' odds had moved** -- six spreads, eight
+  totals -- while the published page changed **0 of its 160 odds cells**. This
+  is the invariant the freeze exists for, and it had never been tested against
+  input that actually differed.
+- **Overrides beat the pipeline even on a field it rewrites hourly.** The
+  weather override held through a save, a publish, two pushes and an unlock.
+- **The opener is written once.** Every push reported `0 openers` against a
+  week whose openers were captured on 2026-09-02.
+- **Drift is surfaced, and unlock releases.** The admin showed "the pipeline
+  has moved since this week was published"; unlocking moved 32 of 160 cells to
+  live values, six summaries gaining their line movement -- `SEA -3 (opened
+  SEA -3.5)`.
+
+Two things only staging could show. The admin's Publish and Unlock buttons use
+`window.confirm()`, which blocks browser automation outright -- override it in
+the page before clicking either. And **weather is fetched live on every build
+regardless of the odds mode**, so two replay runs are never byte-identical;
+any "did the page change?" check has to account for that or it will look
+alarming for no reason.
+
+Phase 5's precondition -- a full rehearsal on staging before production is
+touched -- is therefore met.
+
+Still to do: the production cutover (Phase 5). One dated hazard sits in that
+window -- the odds fixture is per-week, so the hourly staging build fails the
+moment Week 2 opens without a re-recorded fixture, and recording now costs the
+full 19 credits rather than 3, since a recording always probes team totals. The
 `/health` probe's missing retry, which cost one build at 02:45 UTC on
 2026-09-08, was fixed in `90efc81`.
