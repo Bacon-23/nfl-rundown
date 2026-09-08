@@ -326,5 +326,64 @@ placed in a post before 2026-09-03, so nothing readers see had ever been
 exercised -- worth remembering when reading earlier "verified" notes, which all
 covered the pipeline and the database rather than the page.
 
-Still to build: the stat modules (Phase 2) and the visual pass against the
-mockup (Phase 4), then the production cutover (Phase 5).
+**The stat modules landed 2026-09-03.** Phase 2 added `sources/pbp.py`,
+`snaps.py`, and `players.py`, and `metrics/efficiency.py`, `passing.py`,
+`rushing.py`, and `sample.py` — team efficiency, the passing table, the
+running-back table, and the sample badge that says which season a number came
+from. They attach in `build_week._attach_stats()`, which computes each table
+league-wide once per build and slices it per game, and each of the three fails
+independently: a dead snap-count feed costs the backfield table and nothing
+else. 183 tests pass.
+
+Two things that only showed up against real data:
+
+- **nflverse codes Arizona `AZ` in the roster file and `ARI` everywhere else.**
+  Players are keyed to their current team through the roster, so Arizona
+  published two empty tables and raised nothing at all. Fixed with an alias in
+  `team_map.py`, and the build now names any team whose table comes back empty
+  while other teams' fill — the general version of the bug, not just this one.
+- **The third running-back row was mostly fullbacks.** Reggie Gilliam and Kyle
+  Juszczyk at a tenth of a carry a game are real players with real snap shares,
+  but the column heading is "workload". `RUSHER_MIN_ATT_PER_GAME` now requires
+  one carry a game to appear.
+
+Three numbers were hand-checked against the raw feeds before any of this was
+called done — Jaxon Smith-Njigba's 2025 target share, receiving yards per game,
+and TGT RATE all reproduce exactly. Note that **TGT RATE reads high against
+published TPRR** (40.5% vs high-twenties for JSMN): snap share counts running
+plays, so the estimated-routes denominator is too small. The ranking is sound;
+the level is not comparable to a PFF figure. `docs/metrics.md` says so, and the
+column tooltip says so on the page.
+
+**The schema-drift canaries were themselves broken.** `test_live_feeds.py`
+holds the only tests that hit nflverse for real; they are opt-in
+(`pytest -m live`) so a bad afternoon at GitHub never reddens CI, which also
+means nobody had run them. The snap-count row floor turned out to be written
+against the raw regular-season count (~25k) rather than the frame `load()`
+returns after dropping everyone without an offensive snap (~10k), so it could
+not have passed at any point. Corrected to 9,000 against four seasons that run
+9,985 to 10,094 -- about 18.5 offensive players a team-game. All six now pass,
+which is also the standing evidence that the 2025 feeds are intact: 18 weeks,
+272 games, 32 teams.
+
+**PHP now runs locally.** Docker is available on the dev machine after all, so
+`php -l` and a small harness that stubs the dozen WordPress functions
+`render.php` touches will render the modules against a real payload — see
+`docs/metrics.md` for what they mean. All seven plugin files parse, and the
+generated markup is well-formed with `<th scope>` throughout. That is a local
+check, not a staging one: nothing here has been deployed yet.
+
+**Phase 2 shipped 2026-09-08**, the day before kickoff, after the four local
+gates: 189 tests (183 offline, 6 live), `php -l` on all seven plugin files,
+phpcs on the committed ruleset, and a CRLF byte check.
+
+Week 1 is deliberately **not** the launch. It is the end-to-end rehearsal this
+plan always called for, run on staging against live Week 1 data -- which routes
+through the prior-season fallback and so exercises the same path a synthetic
+2025 run would. Production launches Week 2.
+
+Still to build: the rehearsal itself, the visual pass against the mockup
+(Phase 4), then the production cutover (Phase 5). Two dated hazards sit in
+that window -- the odds fixture is per-week, so the hourly staging build fails
+the moment Week 2 opens without a re-recorded fixture, and the `/health` probe
+has no retry, which cost one build at 02:45 UTC on 2026-09-08.
