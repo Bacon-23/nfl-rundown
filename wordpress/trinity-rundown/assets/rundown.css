@@ -179,17 +179,25 @@
 /* ---------- Odds bar and records strip ---------- */
 
 /*
- * The cell separators are the grid's own background showing through a 1px
- * gap, which means the column count has to divide the cell count exactly.
- * auto-fit does not: six cells in five columns left a sixth alone on a second
- * row with four columns' worth of bare grey beside it. So the counts are
- * fixed -- six market cells over three columns, four records over four.
+ * Column counts are fixed rather than auto-fit, because the cells have to fill
+ * whole rows: six market cells over three columns, four records over four.
+ * auto-fit put six cells in five columns and left the sixth alone on a row of
+ * its own.
+ *
+ * Separators are borders on each cell's *start* edges, so a cell paints no
+ * background of its own and keeps the theme's. That is not a stylistic
+ * preference. These cells were `background: Canvas`, which is the user agent's
+ * canvas colour and always white here -- against this dark theme it put
+ * rgb(237,232,232) text on white at a contrast ratio of 1.21:1, which is to say
+ * the spread, the total, both team totals and all four records were invisible
+ * on the live page. Nothing in this stylesheet may assume the page is light.
+ *
+ * Only start edges are drawn, and the first row and column draw nothing, so
+ * the cell borders never double up with the container's.
  */
 .trun-oddsbar {
 	display: grid;
 	grid-template-columns: repeat(3, 1fr);
-	gap: 1px;
-	background: var(--trun-border);
 	border: 1px solid var(--trun-border);
 	border-radius: 6px;
 	overflow: hidden;
@@ -206,7 +214,25 @@
 	flex-direction: column;
 	gap: 0.25rem;
 	padding: 0.75rem;
-	background: Canvas;
+	border-inline-start: 1px solid var(--trun-border);
+	border-block-start: 1px solid var(--trun-border);
+}
+
+.trun-oddsbar:not(.trun-oddsbar--records) .trun-oddsbar__cell:nth-child(3n + 1) {
+	border-inline-start: 0;
+}
+
+.trun-oddsbar:not(.trun-oddsbar--records) .trun-oddsbar__cell:nth-child(-n + 3) {
+	border-block-start: 0;
+}
+
+.trun-oddsbar--records .trun-oddsbar__cell:nth-child(4n + 1) {
+	border-inline-start: 0;
+}
+
+/* Four records over four columns is a single row. */
+.trun-oddsbar--records .trun-oddsbar__cell {
+	border-block-start: 0;
 }
 
 .trun-oddsbar__label {
@@ -404,6 +430,14 @@
  * Status carries weight, not just hue: the word itself is always the signal,
  * so this reads correctly in greyscale and to anyone who cannot separate the
  * colors.
+ *
+ * Each hue is mixed toward currentColor so it tracks the page rather than the
+ * operating system. These were flat hex values with lighter variants behind
+ * `prefers-color-scheme: dark`, which never fired on the live site: this theme
+ * is dark unconditionally, not by OS preference, so the dark reds sat on near
+ * black at 3.2:1 and the olive at 3.0:1. Mixing puts them at roughly 5.7:1 and
+ * 6.2:1 on this theme and above 11:1 on a light one, without moving the hue
+ * far enough to stop reading as a warning.
  */
 .trun-status {
 	font-weight: 600;
@@ -411,15 +445,15 @@
 
 .trun-status--out,
 .trun-status--injured-reserve {
-	color: #b3261e;
+	color: color-mix(in srgb, #b3261e 65%, currentColor);
 }
 
 .trun-status--doubtful {
-	color: #a15c00;
+	color: color-mix(in srgb, #a15c00 65%, currentColor);
 }
 
 .trun-status--questionable {
-	color: #6b5900;
+	color: color-mix(in srgb, #6b5900 65%, currentColor);
 }
 
 /* ---------- Editorial ---------- */
@@ -651,33 +685,30 @@
 	.trun-oddsbar--records {
 		grid-template-columns: repeat(2, 1fr);
 	}
+
+	/* Two columns means a different first column and first row. */
+	.trun-oddsbar .trun-oddsbar__cell {
+		border-inline-start: 1px solid var(--trun-border);
+		border-block-start: 1px solid var(--trun-border);
+	}
+
+	.trun-oddsbar .trun-oddsbar__cell:nth-child(2n + 1) {
+		border-inline-start: 0;
+	}
+
+	.trun-oddsbar .trun-oddsbar__cell:nth-child(-n + 2) {
+		border-block-start: 0;
+	}
 }
 
-/* ---------- Dark ---------- */
-
-/*
- * The tokens above are all relative to currentColor, so most of the page
- * follows the theme without help. These are the values that cannot be: fixed
- * status colors, which need lifting off a dark ground to stay legible.
+/* ---------- Theme ----------
+ *
+ * There is deliberately no `prefers-color-scheme` block. Every colour here is
+ * either relative to currentColor or a team colour paired with the ink the
+ * renderer computed for it, so the page follows whatever theme surrounds it —
+ * including a theme that is dark regardless of the visitor's OS setting, which
+ * is what Trinity Analytics runs and what an OS-keyed block silently missed.
  */
-@media (prefers-color-scheme: dark) {
-	.trun-status--out,
-	.trun-status--injured-reserve {
-		color: #f2b8b5;
-	}
-
-	.trun-status--doubtful {
-		color: #f5c164;
-	}
-
-	.trun-status--questionable {
-		color: #e0cd7a;
-	}
-
-	.trun-week {
-		--trun-sunk: color-mix(in srgb, currentColor 8%, transparent);
-	}
-}
 
 /* ---------- Print ---------- */
 

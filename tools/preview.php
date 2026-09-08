@@ -31,6 +31,11 @@
  *   --game=<needle>   render only games whose id contains <needle>, e.g.
  *                     --game=NE_SEA. Faster to iterate on one panel.
  *   --locked          render as a published week, out of published_json.
+ *   --dark            render the shell dark. Trinity Analytics' theme is dark
+ *                     unconditionally -- not by OS preference -- and checking
+ *                     only the light shell is how a `background: Canvas` that
+ *                     put white boxes behind near-white text reached the live
+ *                     site. Check both.
  */
 
 if ( 'cli' !== PHP_SAPI ) {
@@ -183,6 +188,7 @@ $out     = $paths[1] ?? 'build/preview.html';
 
 $with_notes = in_array( '--notes', $flags, true );
 $locked     = in_array( '--locked', $flags, true );
+$dark       = in_array( '--dark', $flags, true );
 
 $needle = '';
 foreach ( $flags as $flag ) {
@@ -244,7 +250,8 @@ $head = '<!doctype html>' . "\n"
 	. '<link rel="stylesheet" href="' . $assets . '/rundown.css">' . "\n"
 	. '<style>' . "\n"
 	. "\t" . '/* Stand-in for the theme: a content column and readable defaults. */' . "\n"
-	. "\t" . 'body { margin: 0; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }' . "\n"
+	. "\t" . 'body { margin: 0; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;' . "\n"
+	. "\t\t" . ( $dark ? 'background: #000; color: #ede8e8;' : 'background: #fff; color: #1a1a1a;' ) . ' }' . "\n"
 	. "\t" . '.preview-shell { max-width: 48rem; margin: 0 auto; padding: 2rem 1rem 4rem; }' . "\n"
 	. "\t" . '.preview-note { margin: 0 0 2rem; padding: .5rem .75rem; border-inline-start: 3px solid #888;' . "\n"
 	. "\t\t" . 'font-size: .8125rem; color: #767676; }' . "\n"
