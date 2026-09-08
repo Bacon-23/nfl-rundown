@@ -17,8 +17,17 @@ defined( 'ABSPATH' ) || exit;
  * Render a whole week: glance table plus one accordion panel per game.
  */
 function trun_render_week( int $season, int $week ): string {
-	$rows = TRUN_Storage::get_week( $season, $week );
+	return trun_render_rows( TRUN_Storage::get_week( $season, $week ), $season, $week );
+}
 
+/**
+ * Render rows that have already been fetched.
+ *
+ * Split from trun_render_week() so the page can be produced from rows built by
+ * hand -- which is what tools/preview.php does to render a payload locally,
+ * without a database. Everything downstream of here is pure: rows in, HTML out.
+ */
+function trun_render_rows( array $rows, int $season, int $week ): string {
 	if ( ! $rows ) {
 		return current_user_can( 'edit_posts' )
 			? '<p class="trun-empty">No Rundown data for ' . esc_html( $season . ' week ' . $week ) . ' yet.</p>'
@@ -94,7 +103,9 @@ function trun_render_game( array $game, bool $open = false ): string {
 		</summary>
 
 		<div class="trun-game__body">
+			<?php echo trun_render_teambar( $game ); ?>
 			<?php echo trun_render_odds_bar( $game ); ?>
+			<?php echo trun_render_records( $game ); ?>
 			<?php echo trun_render_modules( $game ); ?>
 			<?php echo trun_render_notes( $game ); ?>
 		</div>
@@ -104,43 +115,147 @@ function trun_render_game( array $game, bool $open = false ): string {
 }
 
 /**
- * The header strip: records, spread, total, team totals, weather, kickoff.
+ * Who is playing: logo, name, straight-up record, moneyline, per side.
+ *
+ * The payload has carried records, moneylines and logos since Phase 1 and the
+ * page showed none of them -- a reader arrived at a stat table without being
+ * told whose. This is the mockup's top block.
  */
-function trun_render_odds_bar( array $game ): string {
-	$cells = [
-		[
-			'label' => trun_get( $game, 'away.abbr', 'AWAY' ) . ' team total',
-			'value' => trun_get( $game, 'odds.away_team_total', '--' ),
-		],
-		[
-			'label' => trun_get( $game, 'home.abbr', 'HOME' ) . ' team total',
-			'value' => trun_get( $game, 'odds.home_team_total', '--' ),
-		],
-		[
-			'label' => 'Spread',
-			'value' => trun_spread_text( $game ),
-		],
-		[
-			'label' => 'Total',
-			'value' => (string) trun_get( $game, 'odds.total', '--' ),
-		],
-		[
-			'label' => 'Weather',
-			'value' => trun_get( $game, 'weather.summary', 'TBD' ),
-		],
-		[
-			'label' => 'Kickoff',
-			'value' => trun_get( $game, 'kickoff.display', 'TBD' ),
-		],
+function trun_render_teambar( array $game ): string {
+	$sides = [
+		'away' => __( 'Away', 'trinity-rundown' ),
+		'home' => __( 'Home', 'trinity-rundown' ),
 	];
 
 	ob_start();
 	?>
-	<div class="trun-oddsbar">
+	<div class="trun-teambar">
+		<?php foreach ( $sides as $side => $role ) : ?>
+			<?php
+			$logo = esc_url( (string) trun_get( $game, $side . '.logo', '' ) );
+			$meta = array_filter(
+				[
+					(string) trun_get( $game, $side . '.record', '' ),
+					trun_format_moneyline( trun_get( $game, $side . '.moneyline', null ) ),
+				]
+			);
+			?>
+			<div class="trun-teambar__side trun-teambar__side--<?php echo esc_attr( $side ); ?>">
+				<?php if ( $logo ) : ?>
+					<?php /* Decorative: the team's name is the next element along. */ ?>
+					<img class="trun-teambar__logo" src="<?php echo $logo; ?>"
+						alt="" width="48" height="48" loading="lazy" decoding="async">
+				<?php endif; ?>
+				<span class="trun-teambar__role"><?php echo esc_html( $role ); ?></span>
+				<span class="trun-teambar__name">
+					<?php echo esc_html( (string) trun_get( $game, $side . '.name', trun_get( $game, $side . '.abbr', '' ) ) ); ?>
+				</span>
+				<?php if ( $meta ) : ?>
+					<span class="trun-teambar__meta"><?php echo esc_html( implode( ' · ', $meta ) ); ?></span>
+				<?php endif; ?>
+			</div>
+		<?php endforeach; ?>
+	</div>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * The market strip: team totals, spread, total, weather, kickoff.
+ */
+function trun_render_odds_bar( array $game ): string {
+	// Books post 24 and 24.5 alike to one decimal, and a column mixing "24"
+	// with "20.5" reads as two different kinds of number.
+	$cells = [
+		[
+			'label' => trun_get( $game, 'away.abbr', 'AWAY' ) . ' team total',
+			'value' => trun_decimal( trun_get( $game, 'odds.away_team_total', null ), 1 ),
+		],
+		[
+			'label' => trun_get( $game, 'home.abbr', 'HOME' ) . ' team total',
+			'value' => trun_decimal( trun_get( $game, 'odds.home_team_total', null ), 1 ),
+		],
+		[
+			'label' => __( 'Spread', 'trinity-rundown' ),
+			'value' => trun_spread_bare( $game ),
+			'note'  => trun_opening_text( $game ),
+		],
+		[
+			'label' => __( 'Total', 'trinity-rundown' ),
+			'value' => trun_decimal( trun_get( $game, 'odds.total', null ), 1 ),
+		],
+		[
+			'label' => __( 'Weather', 'trinity-rundown' ),
+			'value' => trun_get( $game, 'weather.summary', 'TBD' ),
+		],
+		[
+			'label' => __( 'Kickoff', 'trinity-rundown' ),
+			'value' => trun_get( $game, 'kickoff.display', 'TBD' ),
+		],
+	];
+
+	return trun_render_cells( $cells );
+}
+
+/**
+ * Season records against the spread and the total, both sides.
+ *
+ * Week 1 shows last season's, which is what the badge on every stat module
+ * says too -- the cutover is `config.stats_season()` in the pipeline, so there
+ * is nothing to decide here.
+ */
+function trun_render_records( array $game ): string {
+	$away = trun_get( $game, 'away.abbr', 'AWAY' );
+	$home = trun_get( $game, 'home.abbr', 'HOME' );
+
+	$ats = __( 'Result against the closing spread. A game landing exactly on the number is a push, counted separately.', 'trinity-rundown' );
+	$ou  = __( 'Combined points against the closing total. Wins count overs, losses count unders.', 'trinity-rundown' );
+
+	$cells = [
+		[
+			'label_html' => trun_abbr( $away . ' ATS', $ats ) . ' <span class="trun-oddsbar__qualifier">(season)</span>',
+			'value'      => trun_get( $game, 'away.ats_record', '--' ),
+		],
+		[
+			'label_html' => trun_abbr( $home . ' ATS', $ats ) . ' <span class="trun-oddsbar__qualifier">(season)</span>',
+			'value'      => trun_get( $game, 'home.ats_record', '--' ),
+		],
+		[
+			'label_html' => trun_abbr( $away . ' O/U', $ou ) . ' <span class="trun-oddsbar__qualifier">(season)</span>',
+			'value'      => trun_get( $game, 'away.ou_record', '--' ),
+		],
+		[
+			'label_html' => trun_abbr( $home . ' O/U', $ou ) . ' <span class="trun-oddsbar__qualifier">(season)</span>',
+			'value'      => trun_get( $game, 'home.ou_record', '--' ),
+		],
+	];
+
+	return trun_render_cells( $cells, 'trun-oddsbar--records' );
+}
+
+/**
+ * The label-over-value grid both strips above are made of.
+ *
+ * A cell carries either a plain `label`, escaped here, or a `label_html` that
+ * has already been built out of trun_abbr() and escaped on the way in.
+ */
+function trun_render_cells( array $cells, string $modifier = '' ): string {
+	ob_start();
+	?>
+	<div class="trun-oddsbar <?php echo esc_attr( $modifier ); ?>">
 		<?php foreach ( $cells as $cell ) : ?>
 			<div class="trun-oddsbar__cell">
-				<span class="trun-oddsbar__label"><?php echo esc_html( $cell['label'] ); ?></span>
+				<span class="trun-oddsbar__label">
+					<?php
+					echo isset( $cell['label_html'] )
+						? $cell['label_html']
+						: esc_html( (string) $cell['label'] );
+					?>
+				</span>
 				<span class="trun-oddsbar__value"><?php echo esc_html( (string) $cell['value'] ); ?></span>
+				<?php if ( ! empty( $cell['note'] ) ) : ?>
+					<span class="trun-oddsbar__note"><?php echo esc_html( (string) $cell['note'] ); ?></span>
+				<?php endif; ?>
 			</div>
 		<?php endforeach; ?>
 	</div>
@@ -175,10 +290,44 @@ function trun_render_efficiency( array $game ): string {
 		return '';
 	}
 
-	$proe_heading = trun_abbr(
-		__( 'PROE', 'trinity-rundown' ),
-		__( "Pass rate over expected, against nflfastR's model. Full season.", 'trinity-rundown' )
-	);
+	$play_types = __( 'Plays where the play type is pass or run. Kneels and spikes are clock management, not play-calling, and are excluded.', 'trinity-rundown' );
+
+	$columns = [
+		[
+			'label' => __( 'Team', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => (string) ( $row['team'] ?? '' ),
+		],
+		[
+			'label' => __( 'Pass rate', 'trinity-rundown' ),
+			'tip'   => $play_types,
+			'cell'  => static fn( $row ) => trun_percent( $row['pass_rate'] ?? null ),
+		],
+		[
+			'label' => __( 'Rush rate', 'trinity-rundown' ),
+			'tip'   => $play_types,
+			'cell'  => static fn( $row ) => trun_percent( $row['rush_rate'] ?? null ),
+		],
+		[
+			'label' => __( 'PROE', 'trinity-rundown' ),
+			'tip'   => __( "Pass rate over expected, against nflfastR's model. Full season.", 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['proe'] ?? null, 1, true ),
+		],
+		[
+			'label' => __( 'Pace (sec/play)', 'trinity-rundown' ),
+			'tip'   => __( 'Mean seconds between snaps on the same possession, at neutral win probability on first and second down. "Pace" has no single industry definition; this is ours, so it will not match another site exactly.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['pace'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Plays/gm', 'trinity-rundown' ),
+			'tip'   => __( 'Offensive plays, kneels and spikes excluded, divided by games played.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['plays_per_game'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'EPA/play (rk)', 'trinity-rundown' ),
+			'tip'   => __( 'Mean offensive expected points added on pass and run plays, ranked 1 to 32 across the league.', 'trinity-rundown' ),
+			'cell'  => 'trun_epa_cell',
+		],
+	];
 
 	ob_start();
 	?>
@@ -187,34 +336,7 @@ function trun_render_efficiency( array $game ): string {
 			<?php esc_html_e( 'Team Efficiency', 'trinity-rundown' ); ?>
 			<?php echo trun_render_badge( $game, 'efficiency' ); ?>
 		</h3>
-		<div class="trun-scroll">
-			<table class="trun-table trun-table--efficiency">
-				<thead>
-					<tr>
-						<th scope="col"><?php esc_html_e( 'Team', 'trinity-rundown' ); ?></th>
-						<th scope="col"><?php esc_html_e( 'Pass rate', 'trinity-rundown' ); ?></th>
-						<th scope="col"><?php esc_html_e( 'Rush rate', 'trinity-rundown' ); ?></th>
-						<th scope="col"><?php echo $proe_heading; ?></th>
-						<th scope="col"><?php esc_html_e( 'Pace (sec/play)', 'trinity-rundown' ); ?></th>
-						<th scope="col"><?php esc_html_e( 'Plays/gm', 'trinity-rundown' ); ?></th>
-						<th scope="col"><?php esc_html_e( 'EPA/play (rk)', 'trinity-rundown' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-				<?php foreach ( $rows as $row ) : ?>
-					<tr>
-						<th scope="row"><?php echo esc_html( $row['team'] ?? '' ); ?></th>
-						<td><?php echo esc_html( trun_percent( $row['pass_rate'] ?? null ) ); ?></td>
-						<td><?php echo esc_html( trun_percent( $row['rush_rate'] ?? null ) ); ?></td>
-						<td><?php echo esc_html( trun_percent( $row['proe'] ?? null, 1, true ) ); ?></td>
-						<td><?php echo esc_html( trun_decimal( $row['pace'] ?? null, 1 ) ); ?></td>
-						<td><?php echo esc_html( trun_decimal( $row['plays_per_game'] ?? null, 1 ) ); ?></td>
-						<td><?php echo esc_html( trun_epa_cell( $row ) ); ?></td>
-					</tr>
-				<?php endforeach; ?>
-				</tbody>
-			</table>
-		</div>
+		<?php echo trun_render_stat_table( $columns, $rows, 'trun-table--efficiency' ); ?>
 	</section>
 	<?php
 	return (string) ob_get_clean();
@@ -235,11 +357,33 @@ function trun_render_passing( array $game ): string {
 		return '';
 	}
 
-	// The one heading on the page that would mislead without its tooltip.
-	$rate_heading = trun_abbr(
-		__( 'Tgt rate', 'trinity-rundown' ),
-		__( 'Targets per estimated pass snap -- a proxy for TPRR, which requires charted route data.', 'trinity-rundown' )
-	);
+	$columns = [
+		[
+			'label' => __( 'Player', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
+		],
+		[
+			'label' => __( 'Role', 'trinity-rundown' ),
+			'tip'   => __( 'Numbered within position across the whole team, and assigned before the five-row cut -- so a team\'s WR3 is its third receiver, not the third name left in the table.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => (string) ( $row['role'] ?? '' ),
+		],
+		[
+			'label' => __( 'Tgt share', 'trinity-rundown' ),
+			'tip'   => __( 'Player targets divided by team targets, season to date.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
+		],
+		[
+			// The one heading on the page that would mislead without its tooltip.
+			'label' => __( 'Tgt rate', 'trinity-rundown' ),
+			'tip'   => __( 'Targets per estimated pass snap -- a proxy for TPRR, which requires charted route data. It reads high against a true TPRR figure; the ranking is sound, the level is not comparable.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['target_rate'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Rec yds/gm', 'trinity-rundown' ),
+			'tip'   => __( 'Receiving yards divided by games with at least one offensive snap, so weeks missed entirely do not drag the average down.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['rec_yds_per_game'] ?? null, 1 ),
+		],
+	];
 
 	ob_start();
 	?>
@@ -249,31 +393,7 @@ function trun_render_passing( array $game ): string {
 			<?php echo trun_render_badge( $game, 'passing' ); ?>
 		</h3>
 		<?php foreach ( $sides as $side ) : ?>
-			<div class="trun-scroll">
-				<table class="trun-table trun-table--passing">
-					<caption class="trun-table__caption"><?php echo esc_html( $side['label'] ); ?></caption>
-					<thead>
-						<tr>
-							<th scope="col"><?php esc_html_e( 'Player', 'trinity-rundown' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Role', 'trinity-rundown' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Tgt share', 'trinity-rundown' ); ?></th>
-							<th scope="col"><?php echo $rate_heading; ?></th>
-							<th scope="col"><?php esc_html_e( 'Rec yds/gm', 'trinity-rundown' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
-					<?php foreach ( $side['rows'] as $row ) : ?>
-						<tr>
-							<th scope="row"><?php echo esc_html( $row['player'] ?? '' ); ?></th>
-							<td><?php echo esc_html( $row['role'] ?? '' ); ?></td>
-							<td><?php echo esc_html( trun_percent( $row['target_share'] ?? null, 1 ) ); ?></td>
-							<td><?php echo esc_html( trun_percent( $row['target_rate'] ?? null, 1 ) ); ?></td>
-							<td><?php echo esc_html( trun_decimal( $row['rec_yds_per_game'] ?? null, 1 ) ); ?></td>
-						</tr>
-					<?php endforeach; ?>
-					</tbody>
-				</table>
-			</div>
+			<?php echo trun_render_stat_table( $columns, $side['rows'], 'trun-table--passing', $side['label'], $side['side'] ); ?>
 		<?php endforeach; ?>
 	</section>
 	<?php
@@ -293,6 +413,33 @@ function trun_render_rushing( array $game ): string {
 		return '';
 	}
 
+	$columns = [
+		[
+			'label' => __( 'Player', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
+		],
+		[
+			'label' => __( 'Snap %', 'trinity-rundown' ),
+			'tip'   => __( 'Pro Football Reference offensive snap share, averaged over games the player appeared in rather than over the season. The table is sorted on this.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['snap_share'] ?? null ),
+		],
+		[
+			'label' => __( 'Rush att/gm', 'trinity-rundown' ),
+			'tip'   => __( 'Rushing attempts divided by games with a snap. A back needs one attempt a game to appear here at all.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['rush_att_per_game'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Tgt share', 'trinity-rundown' ),
+			'tip'   => __( 'Player targets divided by team targets, season to date. The same figure, from the same code, as in the passing table.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Yds/att', 'trinity-rundown' ),
+			'tip'   => __( 'Rushing yards divided by rushing attempts.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['yards_per_att'] ?? null, 1 ),
+		],
+	];
+
 	ob_start();
 	?>
 	<section class="trun-module trun-module--rushing">
@@ -301,33 +448,63 @@ function trun_render_rushing( array $game ): string {
 			<?php echo trun_render_badge( $game, 'rushing' ); ?>
 		</h3>
 		<?php foreach ( $sides as $side ) : ?>
-			<div class="trun-scroll">
-				<table class="trun-table trun-table--rushing">
-					<caption class="trun-table__caption"><?php echo esc_html( $side['label'] ); ?></caption>
-					<thead>
-						<tr>
-							<th scope="col"><?php esc_html_e( 'Player', 'trinity-rundown' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Snap %', 'trinity-rundown' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Rush att/gm', 'trinity-rundown' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Tgt share', 'trinity-rundown' ); ?></th>
-							<th scope="col"><?php esc_html_e( 'Yds/att', 'trinity-rundown' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
-					<?php foreach ( $side['rows'] as $row ) : ?>
-						<tr>
-							<th scope="row"><?php echo esc_html( $row['player'] ?? '' ); ?></th>
-							<td><?php echo esc_html( trun_percent( $row['snap_share'] ?? null ) ); ?></td>
-							<td><?php echo esc_html( trun_decimal( $row['rush_att_per_game'] ?? null, 1 ) ); ?></td>
-							<td><?php echo esc_html( trun_percent( $row['target_share'] ?? null, 1 ) ); ?></td>
-							<td><?php echo esc_html( trun_decimal( $row['yards_per_att'] ?? null, 1 ) ); ?></td>
-						</tr>
-					<?php endforeach; ?>
-					</tbody>
-				</table>
-			</div>
+			<?php echo trun_render_stat_table( $columns, $side['rows'], 'trun-table--rushing', $side['label'], $side['side'] ); ?>
 		<?php endforeach; ?>
 	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * A stat table, from one spec per column.
+ *
+ * The spec is the point. A column's heading, its tooltip, the value in each
+ * cell, and the label a phone shows when the table stacks all come from the
+ * same entry, so they cannot drift apart -- the previous shape wrote the
+ * heading in one loop and the cell in another, and adding a column meant
+ * editing both without anything checking they matched.
+ *
+ * The first column is the row header. Every other cell carries `data-label`,
+ * which is what the stacked layout below 640px renders in front of the value:
+ * without it the numbers arrive in a column with nothing saying what they are.
+ */
+function trun_render_stat_table( array $columns, array $rows, string $table_class, string $caption = '', string $side = '' ): string {
+	ob_start();
+	?>
+	<div class="trun-scroll"<?php echo $side ? ' data-side="' . esc_attr( $side ) . '"' : ''; ?>>
+		<table class="trun-table <?php echo esc_attr( $table_class ); ?>">
+			<?php if ( '' !== $caption ) : ?>
+				<caption class="trun-table__caption"><?php echo esc_html( $caption ); ?></caption>
+			<?php endif; ?>
+			<thead>
+				<tr>
+				<?php foreach ( $columns as $column ) : ?>
+					<th scope="col">
+						<?php
+						echo empty( $column['tip'] )
+							? esc_html( $column['label'] )
+							: trun_abbr( $column['label'], $column['tip'] );
+						?>
+					</th>
+				<?php endforeach; ?>
+				</tr>
+			</thead>
+			<tbody>
+			<?php foreach ( $rows as $row ) : ?>
+				<tr>
+				<?php foreach ( $columns as $index => $column ) : ?>
+					<?php $value = call_user_func( $column['cell'], $row ); ?>
+					<?php if ( 0 === $index ) : ?>
+						<th scope="row"><?php echo esc_html( $value ); ?></th>
+					<?php else : ?>
+						<td data-label="<?php echo esc_attr( $column['label'] ); ?>"><?php echo esc_html( $value ); ?></td>
+					<?php endif; ?>
+				<?php endforeach; ?>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+	</div>
 	<?php
 	return (string) ob_get_clean();
 }
@@ -522,6 +699,7 @@ function trun_module_sides( array $game, string $module ): array {
 			continue;
 		}
 		$sides[] = [
+			'side'  => $side,
 			'label' => (string) trun_get( $game, $side . '.name', trun_get( $game, $side . '.abbr', '' ) ),
 			'rows'  => $rows,
 		];
@@ -634,33 +812,63 @@ function trun_anchor( array $game ): string {
 }
 
 /**
- * Render the spread from the favorite's perspective, with movement if it moved.
+ * The spread from the favorite's perspective, with movement if it moved.
+ *
+ * Used where one string is all there is room for: the glance table and the
+ * collapsed panel summary. The odds bar splits the two halves instead, so the
+ * line itself stays one short bold number.
  */
 function trun_spread_text( array $game ): string {
+	$spread  = trun_spread_bare( $game );
+	$opening = trun_opening_text( $game );
+
+	if ( '--' === $spread || '' === $opening ) {
+		return $spread;
+	}
+
+	/* translators: 1: current line, e.g. "SEA -4.5". 2: "opened SEA -3.5". */
+	return sprintf( __( '%1$s (%2$s)', 'trinity-rundown' ), $spread, $opening );
+}
+
+/** Just the line: "SEA -4.5", "PK", or a dash. */
+function trun_spread_bare( array $game ): string {
 	$spread = trun_get( $game, 'odds.spread', null );
-	$fav    = trun_get( $game, 'odds.spread_favorite', '' );
 
 	if ( null === $spread || '' === $spread ) {
 		return '--';
 	}
 
-	$text = trim( $fav . ' ' . trun_format_spread( (float) $spread ) );
+	return trim(
+		trun_get( $game, 'odds.spread_favorite', '' ) . ' ' . trun_format_spread( (float) $spread )
+	);
+}
 
+/**
+ * "opened SEA -3.5", or nothing at all when the line has not moved.
+ *
+ * The opening line is written once, by WordPress, on the week's first run. A
+ * line that has not moved says nothing worth the space.
+ */
+function trun_opening_text( array $game ): string {
+	$spread      = trun_get( $game, 'odds.spread', null );
 	$open_spread = trun_get( $game, 'odds.opening.spread', null );
-	$open_fav    = trun_get( $game, 'odds.opening.spread_favorite', $fav );
 
-	if ( null !== $open_spread && '' !== $open_spread ) {
-		$moved = ( (float) $open_spread !== (float) $spread ) || ( $open_fav !== $fav );
-		if ( $moved ) {
-			$text .= sprintf(
-				/* translators: %s: the opening line, e.g. "SEA -3.5" */
-				__( ' (opened %s)', 'trinity-rundown' ),
-				trim( $open_fav . ' ' . trun_format_spread( (float) $open_spread ) )
-			);
-		}
+	if ( null === $spread || null === $open_spread || '' === $open_spread ) {
+		return '';
 	}
 
-	return $text;
+	$fav      = trun_get( $game, 'odds.spread_favorite', '' );
+	$open_fav = trun_get( $game, 'odds.opening.spread_favorite', $fav );
+
+	if ( (float) $open_spread === (float) $spread && $open_fav === $fav ) {
+		return '';
+	}
+
+	return sprintf(
+		/* translators: %s: the opening line, e.g. "SEA -3.5" */
+		__( 'opened %s', 'trinity-rundown' ),
+		trim( $open_fav . ' ' . trun_format_spread( (float) $open_spread ) )
+	);
 }
 
 /** Spreads read as -4.5 and +3, never -4.50 or +3.0. */
@@ -673,19 +881,91 @@ function trun_format_spread( float $spread ): string {
 	return ( $spread < 0 ? '-' : '+' ) . $number;
 }
 
+/** Moneylines read as +142 and -170, and a missing one as a dash. */
+function trun_format_moneyline( $price ): string {
+	if ( null === $price || '' === $price || ! is_numeric( $price ) ) {
+		return '';
+	}
+
+	$price = (int) $price;
+
+	return ( $price > 0 ? '+' : '' ) . $price;
+}
+
 /**
  * Expose team colors to CSS as custom properties, scoped to this game.
+ *
+ * Primaries are not unique. Four current teams are #002244 -- Dallas, Denver,
+ * New England and Seattle -- with Atlanta and Tampa Bay both #A71930 and Las
+ * Vegas and Pittsburgh both #000000. Any matchup inside one of those groups
+ * had two identical accents and so no accent at all, and 2026 opens with New
+ * England at Seattle in the panel that renders expanded.
+ *
+ * On a collision the away side moves to its secondary and the home side keeps
+ * its primary: the summary's left rule is the home color, and a reader
+ * scanning the week by that rule should not have it shift underneath them.
+ * If the secondary is missing or collides too, the side falls through to the
+ * neutral declared on .trun-week rather than emitting a color at all.
  */
 function trun_team_color_vars( array $game ): string {
-	$away = trun_get( $game, 'away.color', '' );
-	$home = trun_get( $game, 'home.color', '' );
+	$away = trun_hex( trun_get( $game, 'away.color', '' ) );
+	$home = trun_hex( trun_get( $game, 'home.color', '' ) );
 
-	$vars = '';
-	if ( preg_match( '/^#[0-9a-f]{6}$/i', (string) $away ) ) {
-		$vars .= '--trun-away:' . $away . ';';
+	if ( '' !== $away && $away === $home ) {
+		$alternate = trun_hex( trun_get( $game, 'away.color2', '' ) );
+		$away      = ( '' !== $alternate && $alternate !== $home ) ? $alternate : '';
 	}
-	if ( preg_match( '/^#[0-9a-f]{6}$/i', (string) $home ) ) {
-		$vars .= '--trun-home:' . $home . ';';
+
+	$vars  = '';
+	$sides = [
+		'away' => $away,
+		'home' => $home,
+	];
+
+	foreach ( $sides as $side => $hex ) {
+		if ( '' === $hex ) {
+			continue;
+		}
+		$vars .= '--trun-' . $side . ':' . $hex . ';';
+		$vars .= '--trun-' . $side . '-ink:' . trun_ink_for( $hex ) . ';';
 	}
+
 	return $vars;
+}
+
+/**
+ * A six-digit hex color, lower-cased, or an empty string.
+ *
+ * Every value that reaches a style attribute passes through here, so nothing
+ * from the payload can carry markup or a second declaration into the page.
+ * Lower-casing also makes the collision test above case-insensitive, which it
+ * has to be: nflverse publishes #C60C30 and #69be28 in the same column.
+ */
+function trun_hex( $value ): string {
+	$value = strtolower( trim( (string) $value ) );
+
+	return preg_match( '/^#[0-9a-f]{6}$/', $value ) ? $value : '';
+}
+
+/**
+ * Black or white, whichever a reader can actually read on this background.
+ *
+ * The threshold is not 50% lightness. Contrast against white is
+ * 1.05 / (L + 0.05) and against black (L + 0.05) / 0.05; the two are equal at
+ * a relative luminance of 0.1791, so that is where the choice flips. Picking
+ * by eye instead is how team-colored headers end up at 3:1.
+ */
+function trun_ink_for( string $hex ): string {
+	$channels = [];
+
+	foreach ( [ 1, 3, 5 ] as $offset ) {
+		$channel    = hexdec( substr( $hex, $offset, 2 ) ) / 255;
+		$channels[] = $channel <= 0.03928
+			? $channel / 12.92
+			: pow( ( $channel + 0.055 ) / 1.055, 2.4 );
+	}
+
+	$luminance = ( 0.2126 * $channels[0] ) + ( 0.7152 * $channels[1] ) + ( 0.0722 * $channels[2] );
+
+	return $luminance > 0.1791 ? '#000000' : '#ffffff';
 }

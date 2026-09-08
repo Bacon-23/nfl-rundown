@@ -108,17 +108,24 @@ def to_abbr(name: str) -> str:
 
 @functools.lru_cache(maxsize=1)
 def team_meta() -> dict[str, dict[str, str | None]]:
-    """Display name, primary color, and logo per abbreviation, for the UI."""
+    """Display name, both colors, and logo per abbreviation, for the UI.
+
+    The secondary color is not decoration. Team primaries are not unique --
+    DAL, DEN, NE and SEA are all #002244 -- so a matchup between any two of
+    them has no accent to tell the sides apart without it.
+    """
     teams = nfl.load_teams()
     columns = set(teams.columns)
 
     abbr_col = next((c for c in ("team_abbr", "team", "abbr") if c in columns), None)
     name_col = next((c for c in ("team_name", "full_name") if c in columns), None)
     color_col = next((c for c in ("team_color", "primary_color") if c in columns), None)
+    color2_cols = ("team_color2", "secondary_color")
+    color2_col = next((c for c in color2_cols if c in columns), None)
     logo_cols = ("team_logo_espn", "team_logo_wikipedia", "logo")
     logo_col = next((c for c in logo_cols if c in columns), None)
 
-    wanted = [c for c in (abbr_col, name_col, color_col, logo_col) if c]
+    wanted = [c for c in (abbr_col, name_col, color_col, color2_col, logo_col) if c]
 
     meta: dict[str, dict[str, str | None]] = {}
     for row in teams.select(wanted).iter_rows(named=True):
@@ -128,6 +135,7 @@ def team_meta() -> dict[str, dict[str, str | None]]:
         meta[abbr] = {
             "name": row.get(name_col) if name_col else abbr,
             "color": row.get(color_col) if color_col else None,
+            "color2": row.get(color2_col) if color2_col else None,
             "logo": row.get(logo_col) if logo_col else None,
         }
     return meta

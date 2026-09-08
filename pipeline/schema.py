@@ -28,7 +28,11 @@ class Team(Base):
     abbr: str
     name: str
     color: str | None = None
+    #: Secondary color, used when both sides share a primary. Four current
+    #: teams are #002244 (DAL, DEN, NE, SEA), so this is not a rare case.
+    color2: str | None = None
     logo: str | None = None
+    #: Straight-up W-L, or W-L-T when a game tied.
     record: str | None = None
     ats_record: str | None = None
     ou_record: str | None = None

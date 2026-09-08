@@ -20,6 +20,7 @@ import pytest
 from pipeline.sources import pbp as pbp_source
 from pipeline.sources import players as players_source
 from pipeline.sources import snaps as snaps_source
+from pipeline.sources import team_map
 
 pytestmark = pytest.mark.live
 
@@ -90,3 +91,32 @@ def test_the_pfr_to_gsis_map_still_covers_the_skill_positions():
 
     unmatched = matched["player_id"].null_count()
     assert unmatched / skill.height < 0.02
+
+
+#: Every current team sharing #002244. A matchup between any two of them has no
+#: accent to tell the sides apart unless the secondary color is present and
+#: distinct, and Week 1 of 2026 opens with NE at SEA.
+NAVY_TEAMS = ("DAL", "DEN", "NE", "SEA")
+
+
+def test_teams_still_publish_a_secondary_color():
+    """The accent colour falls back to this whenever two primaries collide.
+
+    If nflverse drops `team_color2` nothing errors -- the page just quietly
+    renders one navy panel with two navy sides again, which is the bug this
+    column exists to fix.
+    """
+    meta = team_map.team_meta()
+
+    assert len(meta) >= 32
+    assert all(meta[abbr].get("color2") for abbr in NAVY_TEAMS)
+
+
+def test_the_teams_that_share_a_primary_do_not_share_a_secondary():
+    meta = team_map.team_meta()
+
+    primaries = {meta[abbr]["color"].lower() for abbr in NAVY_TEAMS}
+    secondaries = {meta[abbr]["color2"].lower() for abbr in NAVY_TEAMS}
+
+    assert len(primaries) == 1, "these four are expected to share a primary"
+    assert len(secondaries) == len(NAVY_TEAMS)

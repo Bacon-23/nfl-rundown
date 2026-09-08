@@ -103,6 +103,7 @@ def _team(abbr: str, meta: dict, *, moneyline: int | None) -> Team:
         abbr=abbr,
         name=info.get("name") or abbr,
         color=info.get("color"),
+        color2=info.get("color2"),
         logo=info.get("logo"),
         moneyline=moneyline,
     )
@@ -285,7 +286,7 @@ def _games_sampled(games: dict[str, int], sides: tuple[str, str]) -> int | None:
 
 
 def _attach_records(built: list[Game], records: dict[str, TeamRecords]) -> None:
-    """Write each side's ATS and over/under record onto the built game.
+    """Write each side's straight-up, ATS, and over/under record onto the game.
 
     A team the tally never saw, or one whose record is empty, is left as None
     rather than "0-0" -- the renderer shows a dash, which is honest, where
@@ -296,6 +297,7 @@ def _attach_records(built: list[Game], records: dict[str, TeamRecords]) -> None:
             record = records.get(team.abbr)
             if record is None:
                 continue
+            team.record = str(record.su) or None
             team.ats_record = str(record.ats) or None
             team.ou_record = str(record.ou) or None
 

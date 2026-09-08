@@ -345,6 +345,15 @@ capturing opening lines so Week 1 has real movement data.
 
 **Phase 4 — make it look like the mockup (days 14–17).** CSS, mobile, print, a11y, tooltips, all reviewed on staging URLs. Dry runs against real Week 1 odds as they firm up. One known issue to fix here: New England and Seattle share `#002244` as their primary color, so the team-color accent cannot distinguish that matchup — fall back to `team_color2` when the two sides collide.
 
+> **Corrected when Phase 4 was built.** That collision is not one pair. Checked
+> against `nflreadpy.load_teams()`: `#002244` is **four** current teams — DAL,
+> DEN, NE, SEA — with ATL and TB both `#A71930` and LV and PIT both `#000000`.
+> The fix therefore keys on any two sides matching, not on a named pair.
+> `team_color2` is distinct within every one of those groups. Also missed here:
+> the payload has carried records, moneylines and logos since Phase 1 and the
+> front end rendered none of them, so Phase 4 had a content gap to close as
+> well as a styling one.
+
 **Phase 5 — go live, then extend.** Connect production GitHub Deployments and do a manual deploy; add the `production` environment secrets; switch the scheduled workflow's target. Then: DvP module; anytime TD props de-vigged into implied probabilities; "last 4 weeks" trend columns; paid routes-run adapter; line-movement sparkline.
 
 ---
