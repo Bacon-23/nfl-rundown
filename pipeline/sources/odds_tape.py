@@ -54,6 +54,7 @@ class LiveTape:
     """Straight passthrough to the network."""
 
     replaying = False
+    recording = False
 
     def get(self, client: httpx.Client, url: str, params: dict) -> httpx.Response:
         return client.get(url, params=params)
@@ -64,6 +65,8 @@ class LiveTape:
 
 class RecordingTape(LiveTape):
     """Fetch live, and keep a copy of everything for later replay."""
+
+    recording = True
 
     def __init__(self, path: Path, meta: dict | None = None):
         self.path = Path(path)
@@ -103,6 +106,7 @@ class ReplayTape:
     """Serve recorded responses. Never touches the network."""
 
     replaying = True
+    recording = False
 
     def __init__(self, path: Path):
         self.path = Path(path)

@@ -120,7 +120,33 @@ python -m pipeline.build_week --season 2026 --week 1 --replay-odds --dry-run
 
 Recording costs roughly **19 credits** for a 16-game week, not the 3 a reading
 of the bulk endpoint suggests: 3 for the featured markets in one bulk call,
-plus one per game for `team_totals`, which is only available per event.
+plus one per game for `team_totals`, which is only available per event. A
+recording always pays for the per-event calls, whatever the probe schedule
+below says — a fixture that skipped them would silently lose team totals on
+every replay taken from it.
+
+### The team-totals probe
+
+A normal live build costs **3 credits**, not 19. `team_totals` is a per-event
+market at a credit a game, and on the 2026 Week 1 slate DraftKings posted it
+for none of them: all sixteen responses came back `200` with an empty
+`bookmakers` list, and every team total was derived from the spread and total
+regardless. Paying that on an hourly cron is ~10,000 credits a month for
+nothing, on a subscription shared with other products.
+
+So a live build probes the market on one hour a day —
+`ODDS_TEAM_TOTALS_PROBE_HOUR`, 12:00 UTC — and derives the rest of the time.
+Set it to `None` to stop probing at all.
+
+Little is lost by the lag. A derived team total tracks the spread and total as
+they move, where a posted one from this morning would not, so the derived
+figure is arguably the fresher of the two. What the daily probe buys is
+noticing: if the book starts posting the market mid-season, a build picks it up
+within a day rather than never, and logs how many games it found.
+
+Recording and replaying ignore the schedule entirely — see
+`_should_probe_team_totals`. A replay whose output depended on the hour it ran
+at would destroy the property the fixture exists for.
 
 Fixtures live in `pipeline/fixtures/` and never contain the API key.
 
