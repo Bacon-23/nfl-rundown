@@ -23,6 +23,16 @@ class PushError(RuntimeError):
     pass
 
 
+class TransientPushError(PushError):
+    """A failure worth repeating: the site had a bad moment, not a bad request.
+
+    Kept a subclass of PushError so every existing `except PushError` still
+    catches it; the distinction exists only so the retry loop can tell a 502
+    from a rejected token. Without it the loop retries a 403 three times and
+    buries the one message that tells the operator what to fix.
+    """
+
+
 def endpoint(path: str) -> str:
     if not config.WP_SITE_URL:
         raise PushError("WP_SITE_URL is not set.")
@@ -37,12 +47,55 @@ def _headers() -> dict[str, str]:
     }
 
 
+def _with_retries(what: str, attempt_once):
+    """Run `attempt_once`, retrying transient failures with a backoff.
+
+    Retries only on network errors and 5xx. A 401, 403, or 422 means the
+    request itself is wrong, and repeating it will not help -- it only delays
+    the message the operator actually needs.
+    """
+    last_error: Exception | None = None
+
+    for attempt in range(1, config.HTTP_RETRIES + 1):
+        try:
+            return attempt_once()
+        except (httpx.HTTPError, TransientPushError) as exc:
+            last_error = exc
+            if attempt == config.HTTP_RETRIES:
+                break
+            delay = 2 ** attempt
+            log.warning(
+                "%s attempt %d failed (%s); retrying in %ds.", what, attempt, exc, delay
+            )
+            time.sleep(delay)
+
+    raise PushError(f"{what} failed after {config.HTTP_RETRIES} attempts: {last_error}")
+
+
 def health() -> dict:
-    """Verify credentials and that the table exists, without writing."""
-    with httpx.Client(timeout=config.HTTP_TIMEOUT) as client:
-        response = client.get(endpoint("health"), headers=_headers())
-        _raise_for_status(response)
-        return response.json()
+    """Verify credentials and that the table exists, without writing.
+
+    Retries on the same terms as a push. This is a hard gate in CI -- a build
+    that cannot reach the site stops before spending Odds API credits -- so a
+    single dropped connection used to cost the entire run. One did, at 02:45
+    UTC on 2026-09-08, with green builds on either side of it.
+    """
+
+    def once() -> dict:
+        with httpx.Client(timeout=config.HTTP_TIMEOUT) as client:
+            response = client.get(endpoint("health"), headers=_headers())
+
+            # 5xx is the site having a bad moment; raising here routes it into
+            # the retry rather than out to the caller as a final answer.
+            if response.status_code >= 500:
+                raise TransientPushError(
+                    f"WordPress returned {response.status_code}: {response.text[:300]}"
+                )
+
+            _raise_for_status(response)
+            return response.json()
+
+    return _with_retries("Health probe", once)
 
 
 def push_week(payload: WeekPayload) -> dict:
@@ -62,7 +115,7 @@ def push_week(payload: WeekPayload) -> dict:
                 response = client.post(url, headers=_headers(), json=body)
 
                 if response.status_code >= 500:
-                    raise PushError(
+                    raise TransientPushError(
                         f"WordPress returned {response.status_code}: {response.text[:300]}"
                     )
 
@@ -84,7 +137,7 @@ def push_week(payload: WeekPayload) -> dict:
                     )
                 return result
 
-            except (httpx.HTTPError, PushError) as exc:
+            except (httpx.HTTPError, TransientPushError) as exc:
                 last_error = exc
                 if attempt == config.HTTP_RETRIES:
                     break
