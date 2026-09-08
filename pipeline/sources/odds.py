@@ -6,9 +6,15 @@ Credit arithmetic, from the v4 docs:
   per-event /odds     cost = unique markets returned x regions, per event
   historical          cost = 10 x markets x regions
 
-Passing `bookmakers=` instead of `regions=` keeps the multiplier at one. A
-weekly build therefore costs 3 credits for the featured markets plus one per
-game for team totals.
+Passing `bookmakers=` instead of `regions=` keeps the multiplier at one, so
+the featured markets cost 3 credits however many games are on the slate.
+
+Team totals are the expensive part: one call, one credit, per game, which on a
+sixteen-game week is 16 of the 19 credits a build spends. DraftKings posted
+that market for none of the 2026 week 1 games -- every response was a 200 with
+an empty `bookmakers` list -- so a live build now probes it once a day and
+derives the rest of the time, at 3 credits a build. `_should_probe_team_totals`
+holds that rule, and deliberately exempts recording and replay.
 
 When the API is unreachable, over quota, or unconfigured, this module returns
 lines derived from nflverse and marks the payload so the admin screen can warn
@@ -19,7 +25,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -66,6 +72,7 @@ def fetch(
     use_api: bool = True,
     record: Path | None = None,
     replay: Path | None = None,
+    now: datetime | None = None,
 ) -> OddsFetchResult:
     """Odds for every game in `games`, keyed by nflverse game_id.
 
@@ -78,6 +85,8 @@ def fetch(
     Args:
         record: capture live responses to this path for later replay.
         replay: serve responses from this fixture instead of calling the API.
+        now: the build's wall clock, which decides whether this run probes the
+            per-event team_totals market. Injected so the schedule is testable.
     """
     if not use_api:
         return _fallback(games, "Odds API disabled for this run (--no-odds-api).")
@@ -85,7 +94,7 @@ def fetch(
     tape = _make_tape(games, record=record, replay=replay)
 
     try:
-        result = _from_api(games, tape)
+        result = _from_api(games, tape, now=now or datetime.now(UTC))
     except OddsUnavailable as exc:
         log.warning("Odds API unavailable: %s", exc)
         return _fallback(games, str(exc))
@@ -126,8 +135,11 @@ def _make_tape(games: list[ScheduledGame], *, record: Path | None, replay: Path 
 # ---------------------------------------------------------------------------
 
 
-def _from_api(games: list[ScheduledGame], tape=None) -> OddsFetchResult:
+def _from_api(
+    games: list[ScheduledGame], tape=None, *, now: datetime | None = None
+) -> OddsFetchResult:
     tape = tape or LiveTape()
+    now = now or datetime.now(UTC)
 
     # Replay serves recorded responses, so it needs no credential.
     key = ""
@@ -165,12 +177,18 @@ def _from_api(games: list[ScheduledGame], tape=None) -> OddsFetchResult:
                 continue
             odds[game.game_id] = _parse_event(event, game, book)
 
-        if config.ODDS_FETCH_TEAM_TOTALS:
+        if _should_probe_team_totals(now, tape):
             # Prefer the later reading, including zero -- an exhausted quota is
             # exactly the number worth reporting.
             latest = _apply_team_totals(client, key, book, by_game, odds, warnings, tape)
             if latest is not None:
                 quota = latest
+
+            posted = sum(1 for o in odds.values() if not o.team_totals_derived)
+            # Worth saying out loud: the market being absent is why the probe is
+            # only daily, so the day it comes back should not pass unnoticed.
+            log.info("Probed %s for team totals: %d of %d games posted.",
+                     book, posted, len(by_game))
 
     # Anything the market did not post, derive.
     for game in games:
@@ -181,6 +199,21 @@ def _from_api(games: list[ScheduledGame], tape=None) -> OddsFetchResult:
     log.info("Odds API quota remaining: %s", quota)
 
     return OddsFetchResult(odds=odds, source="odds_api", quota_remaining=quota, warnings=warnings)
+
+
+def _should_probe_team_totals(now: datetime, tape) -> bool:
+    """Does this run pay for the per-event team_totals market?
+
+    Recording and replaying always do, and deliberately ignore the clock. A
+    fixture has to be a complete tape or every replay from it quietly loses
+    team totals, and a replay whose output depended on the hour would destroy
+    the one property the fixture exists for -- that two runs cannot differ.
+    """
+    if tape.replaying or tape.recording:
+        return True
+
+    hour = config.ODDS_TEAM_TOTALS_PROBE_HOUR
+    return hour is not None and now.hour == hour
 
 
 def _get_bulk(client: httpx.Client, key: str, book: str, tape) -> tuple[list[dict], int | None]:
@@ -289,8 +322,6 @@ def _match_events(events: list[dict], games: list[ScheduledGame]) -> dict[str, d
 
 
 def _parse_iso(value):
-    from datetime import datetime
-
     if not value:
         return None
     try:

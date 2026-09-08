@@ -38,9 +38,19 @@ ODDS_SPORT_KEY: Final[str] = "americanfootball_nfl"
 ODDS_BULK_MARKETS: Final[tuple[str, ...]] = ("h2h", "spreads", "totals")
 
 #: team_totals is not a featured market, so it needs the per-event endpoint at
-#: one call (and one credit) per game. Set to False to save credits and fall
-#: back to deriving team totals from the spread and total.
-ODDS_FETCH_TEAM_TOTALS: Final[bool] = True
+#: one call (and one credit) per game -- sixteen of the nineteen credits a
+#: build costs. Measured on the 2026 week 1 slate, DraftKings posted the market
+#: for none of them: every response came back 200 with an empty `bookmakers`
+#: list, and every team total was derived from the spread and total anyway.
+#:
+#: So a live build probes the market on one hour a day and derives the rest of
+#: the time. The lag matters little -- a derived team total tracks the spread
+#: and total as they move, where a posted one from this morning would not --
+#: and the probe means a book that starts posting it is noticed within a day
+#: rather than never. Set to None to stop probing altogether.
+#:
+#: Recording and replaying ignore this: see `_should_probe_team_totals`.
+ODDS_TEAM_TOTALS_PROBE_HOUR: Final[int | None] = 12
 
 #: Warn loudly when the remaining monthly quota drops below this.
 ODDS_QUOTA_FLOOR: Final[int] = 5_000

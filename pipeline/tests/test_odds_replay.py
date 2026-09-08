@@ -10,6 +10,7 @@ guard actually fires.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -18,11 +19,13 @@ import respx
 from pipeline import config
 from pipeline.sources import odds as odds_source
 from pipeline.sources.odds_tape import (
+    LiveTape,
+    RecordingTape,
     ReplayTape,
     StaleFixtureError,
     tape_key,
 )
-from pipeline.tests.test_odds import BULK_URL, bulk_event, make_game
+from pipeline.tests.test_odds import BULK_URL, at, bulk_event, make_game
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +35,20 @@ def _api_key(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _no_team_totals(monkeypatch):
-    monkeypatch.setattr(config, "ODDS_FETCH_TEAM_TOTALS", False)
+    """Off for live builds at every hour, so the tests below prove that
+    recording and replaying ignore the schedule rather than inherit it."""
+    monkeypatch.setattr(config, "ODDS_TEAM_TOTALS_PROBE_HOUR", None)
+
+
+def mock_unposted_team_totals():
+    """The per-event response DraftKings actually returns for these games.
+
+    A recording always probes, so every test that records has to answer this
+    call even when team totals are not what it is about.
+    """
+    return respx.get(url__regex=r".*/events/.*/odds.*").mock(
+        return_value=httpx.Response(200, json={"id": "evt1", "bookmakers": []})
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +67,7 @@ def test_record_then_replay_gives_identical_odds(tmp_path):
             headers={"x-requests-remaining": "98765"},
         )
     )
+    mock_unposted_team_totals()
 
     live = odds_source.fetch([make_game()], record=fixture)
     assert fixture.is_file()
@@ -72,6 +89,7 @@ def test_fixture_never_contains_the_api_key(tmp_path):
     fixture = tmp_path / "odds.json"
 
     respx.get(BULK_URL).mock(return_value=httpx.Response(200, json=[bulk_event()]))
+    mock_unposted_team_totals()
     odds_source.fetch([make_game()], record=fixture)
 
     text = fixture.read_text(encoding="utf-8")
@@ -93,8 +111,13 @@ def test_a_failed_fetch_writes_no_fixture(tmp_path):
 
 
 @respx.mock
-def test_recording_captures_per_event_calls_too(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "ODDS_FETCH_TEAM_TOTALS", True)
+def test_recording_captures_per_event_calls_too(tmp_path):
+    """A recording is a complete tape, whatever hour it was made at.
+
+    The probe schedule is off for live builds here. If recording honoured it,
+    this fixture would be missing its per-event entries and every replay from
+    it would silently lose team totals.
+    """
     fixture = tmp_path / "odds.json"
 
     respx.get(BULK_URL).mock(return_value=httpx.Response(200, json=[bulk_event()]))
@@ -141,6 +164,67 @@ def test_recording_captures_per_event_calls_too(tmp_path, monkeypatch):
     assert replayed.odds["2026_01_NE_SEA"].home_team_total == 26.5
 
 
+@respx.mock
+def test_replay_is_identical_whatever_hour_it_runs_at(tmp_path, monkeypatch):
+    """The point of a fixture is that two runs cannot differ.
+
+    A schedule keyed on the clock would quietly break that: the same fixture
+    would yield posted team totals at noon and derived ones at midnight, and
+    a diff between two staging builds would stop meaning a real change.
+    """
+    monkeypatch.setattr(config, "ODDS_TEAM_TOTALS_PROBE_HOUR", 12)
+    fixture = tmp_path / "odds.json"
+
+    respx.get(BULK_URL).mock(
+        return_value=httpx.Response(200, json=[bulk_event(spread=-4.5, total=45.5)])
+    )
+    respx.get(url__regex=r".*/events/evt1/odds.*").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "evt1",
+                "home_team": "Seattle Seahawks",
+                "away_team": "New England Patriots",
+                "bookmakers": [
+                    {
+                        "key": "draftkings",
+                        "markets": [
+                            {
+                                "key": "team_totals",
+                                "outcomes": [
+                                    {
+                                        "name": "Over",
+                                        "description": "Seattle Seahawks",
+                                        "point": 26.5,
+                                        "price": -110,
+                                    },
+                                    {
+                                        "name": "Over",
+                                        "description": "New England Patriots",
+                                        "point": 19.5,
+                                        "price": -110,
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+    )
+
+    odds_source.fetch([make_game()], record=fixture, now=at(12))
+
+    respx.get(url__regex=r".*").mock(side_effect=AssertionError("replay hit the network"))
+
+    at_noon = odds_source.fetch([make_game()], replay=fixture, now=at(12))
+    at_midnight = odds_source.fetch([make_game()], replay=fixture, now=at(0))
+
+    assert at_noon.odds == at_midnight.odds
+    assert at_midnight.odds["2026_01_NE_SEA"].home_team_total == 26.5
+    assert at_midnight.odds["2026_01_NE_SEA"].team_totals_derived is False
+
+
 # ---------------------------------------------------------------------------
 # The stale-fixture guard
 # ---------------------------------------------------------------------------
@@ -155,6 +239,7 @@ def test_stale_fixture_fails_rather_than_falling_back(tmp_path):
     fixture = tmp_path / "odds.json"
 
     respx.get(BULK_URL).mock(return_value=httpx.Response(200, json=[bulk_event()]))
+    mock_unposted_team_totals()
     odds_source.fetch([make_game()], record=fixture)
 
     # Next week's slate: none of these teams are in the fixture.
@@ -173,6 +258,7 @@ def test_partial_match_above_the_floor_is_allowed(tmp_path):
     fixture = tmp_path / "odds.json"
 
     respx.get(BULK_URL).mock(return_value=httpx.Response(200, json=[bulk_event()]))
+    mock_unposted_team_totals()
     odds_source.fetch([make_game()], record=fixture)
 
     games = [make_game(), make_game(away="GB", home="MIN", game_id="2026_01_GB_MIN")]
@@ -191,6 +277,7 @@ def test_the_floor_is_configurable(tmp_path, monkeypatch):
 
     fixture = tmp_path / "odds.json"
     respx.get(BULK_URL).mock(return_value=httpx.Response(200, json=[bulk_event()]))
+    mock_unposted_team_totals()
     odds_source.fetch([make_game()], record=fixture)
 
     games = [make_game(), make_game(away="GB", home="MIN", game_id="2026_01_GB_MIN")]
@@ -245,3 +332,15 @@ def test_tape_key_separates_events():
 def test_record_and_replay_together_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="Cannot record and replay"):
         odds_source.fetch([make_game()], record=tmp_path / "a.json", replay=tmp_path / "b.json")
+
+
+def test_every_tape_declares_both_transport_flags():
+    """`_should_probe_team_totals` reads both flags off whatever tape it gets.
+
+    ReplayTape does not inherit from LiveTape, so today it only survives that
+    read because `or` short-circuits on `replaying`. Reordering the condition
+    would turn a schedule decision into an AttributeError mid-build.
+    """
+    for tape in (LiveTape(), RecordingTape(Path("unused.json")), ReplayTape.__new__(ReplayTape)):
+        assert isinstance(tape.replaying, bool)
+        assert isinstance(tape.recording, bool)

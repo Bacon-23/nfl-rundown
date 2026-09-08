@@ -90,10 +90,20 @@ def _api_key(monkeypatch):
     monkeypatch.setenv("ODDS_API_KEY", "test-key")
 
 
+#: The hour the probe tests configure. Arbitrary -- what matters is that the
+#: run's clock either matches it or does not.
+PROBE_HOUR = 12
+
+
+def at(hour: int) -> datetime:
+    """A build running at `hour` UTC on kickoff week."""
+    return datetime(2026, 9, 8, hour, 30, tzinfo=UTC)
+
+
 @pytest.fixture(autouse=True)
 def _no_team_totals(monkeypatch):
     """Default the per-event call off; the tests that want it turn it on."""
-    monkeypatch.setattr(config, "ODDS_FETCH_TEAM_TOTALS", False)
+    monkeypatch.setattr(config, "ODDS_TEAM_TOTALS_PROBE_HOUR", None)
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +184,7 @@ def test_derived_team_totals_favor_the_away_team_when_it_is_favored():
 
 @respx.mock
 def test_posted_team_totals_win_over_derivation(monkeypatch):
-    monkeypatch.setattr(config, "ODDS_FETCH_TEAM_TOTALS", True)
+    monkeypatch.setattr(config, "ODDS_TEAM_TOTALS_PROBE_HOUR", PROBE_HOUR)
 
     respx.get(BULK_URL).mock(
         return_value=httpx.Response(200, json=[bulk_event(spread=-4.5, total=45.5)])
@@ -205,7 +215,7 @@ def test_posted_team_totals_win_over_derivation(monkeypatch):
         )
     )
 
-    odds = odds_source.fetch([make_game()]).odds["2026_01_NE_SEA"]
+    odds = odds_source.fetch([make_game()], now=at(PROBE_HOUR)).odds["2026_01_NE_SEA"]
 
     assert odds.home_team_total == 26.5
     assert odds.away_team_total == 19.5
@@ -215,19 +225,81 @@ def test_posted_team_totals_win_over_derivation(monkeypatch):
 @respx.mock
 def test_team_total_failure_falls_back_to_derivation(monkeypatch):
     """A per-event 500 must not lose the whole build."""
-    monkeypatch.setattr(config, "ODDS_FETCH_TEAM_TOTALS", True)
+    monkeypatch.setattr(config, "ODDS_TEAM_TOTALS_PROBE_HOUR", PROBE_HOUR)
 
     respx.get(BULK_URL).mock(
         return_value=httpx.Response(200, json=[bulk_event(spread=-4.5, total=45.5)])
     )
     respx.get(url__regex=r".*/events/evt1/odds.*").mock(return_value=httpx.Response(500))
 
-    result = odds_source.fetch([make_game()])
+    result = odds_source.fetch([make_game()], now=at(PROBE_HOUR))
     odds = result.odds["2026_01_NE_SEA"]
 
     assert result.source == "odds_api"
     assert odds.home_team_total == 25.0
     assert odds.team_totals_derived is True
+
+
+# ---------------------------------------------------------------------------
+# The daily probe
+#
+# team_totals is a per-event market: one call, and one credit, per game. The
+# book posts it rarely enough that paying for it every build is most of the
+# Rundown's API spend for nothing, so a live build probes it once a day and
+# derives the rest of the time.
+# ---------------------------------------------------------------------------
+
+
+@respx.mock
+def test_team_totals_are_not_probed_outside_the_probe_hour(monkeypatch):
+    monkeypatch.setattr(config, "ODDS_TEAM_TOTALS_PROBE_HOUR", PROBE_HOUR)
+
+    respx.get(BULK_URL).mock(
+        return_value=httpx.Response(200, json=[bulk_event(spread=-4.5, total=45.5)])
+    )
+    per_event = respx.get(url__regex=r".*/events/evt1/odds.*").mock(
+        return_value=httpx.Response(200, json={"id": "evt1", "bookmakers": []})
+    )
+
+    odds = odds_source.fetch([make_game()], now=at(PROBE_HOUR + 1)).odds["2026_01_NE_SEA"]
+
+    assert per_event.call_count == 0
+    assert odds.home_team_total == 25.0
+    assert odds.team_totals_derived is True
+
+
+@respx.mock
+def test_team_totals_are_probed_on_the_probe_hour(monkeypatch):
+    monkeypatch.setattr(config, "ODDS_TEAM_TOTALS_PROBE_HOUR", PROBE_HOUR)
+
+    respx.get(BULK_URL).mock(
+        return_value=httpx.Response(200, json=[bulk_event(spread=-4.5, total=45.5)])
+    )
+    per_event = respx.get(url__regex=r".*/events/evt1/odds.*").mock(
+        return_value=httpx.Response(200, json={"id": "evt1", "bookmakers": []})
+    )
+
+    odds_source.fetch([make_game()], now=at(PROBE_HOUR))
+
+    assert per_event.call_count == 1
+
+
+@respx.mock
+def test_a_probe_hour_of_none_never_probes(monkeypatch):
+    """The off switch, for a season where the book never posts the market."""
+    monkeypatch.setattr(config, "ODDS_TEAM_TOTALS_PROBE_HOUR", None)
+
+    respx.get(BULK_URL).mock(
+        return_value=httpx.Response(200, json=[bulk_event(spread=-4.5, total=45.5)])
+    )
+    per_event = respx.get(url__regex=r".*/events/evt1/odds.*").mock(
+        return_value=httpx.Response(200, json={"id": "evt1", "bookmakers": []})
+    )
+
+    for hour in range(24):
+        odds_source.fetch([make_game()], now=at(hour))
+
+    assert per_event.call_count == 0
 
 
 # ---------------------------------------------------------------------------
