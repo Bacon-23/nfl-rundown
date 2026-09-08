@@ -1,21 +1,34 @@
 /*
  * Trinity Rundown — front-end styles.
  *
- * Phase 0: structural only. Phase 4 does the visual pass against the mockup.
- * Everything is scoped under .trun-* so it cannot leak into the theme.
+ * Everything is scoped under .trun-* so it cannot leak into the theme, and
+ * every color is a token declared on .trun-week so the theme's own palette is
+ * never assumed. Team colors arrive per game as custom properties set inline
+ * from the payload; --trun-away-ink and --trun-home-ink come with them and are
+ * black or white, whichever the renderer computed is readable on that color.
+ * Never hard-code text over a team color — use the ink.
  *
- * Colors come through as custom properties set per game from teamcolors.csv;
- * the fallbacks here keep the page readable if a color is missing.
+ * Layout switches on the *container*, not the viewport: the shortcode drops
+ * into whatever column a theme gives it, and a 640px-wide sidebar needs the
+ * phone layout even on a desktop.
  */
 
 .trun-week {
+	/* Neutral fallbacks. A game whose colors collided, or has none, lands here. */
 	--trun-away: #4a5568;
 	--trun-home: #2d3748;
+	--trun-away-ink: #ffffff;
+	--trun-home-ink: #ffffff;
+
 	--trun-border: color-mix(in srgb, currentColor 15%, transparent);
+	--trun-rule: color-mix(in srgb, currentColor 28%, transparent);
 	--trun-muted: color-mix(in srgb, currentColor 65%, transparent);
+	--trun-sunk: color-mix(in srgb, currentColor 4%, transparent);
 	--trun-gap: 1rem;
+	--trun-radius: 10px;
 
 	container-type: inline-size;
+	font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Week at a glance ---------- */
@@ -39,17 +52,22 @@
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	color: var(--trun-muted);
+	border-block-end-color: var(--trun-rule);
 }
 
 .trun-glance tbody th {
 	font-weight: 600;
 }
 
+.trun-glance tbody tr:hover {
+	background: var(--trun-sunk);
+}
+
 /* ---------- Game panels ---------- */
 
 .trun-game {
 	border: 1px solid var(--trun-border);
-	border-radius: 8px;
+	border-radius: var(--trun-radius);
 	margin-block-end: var(--trun-gap);
 	overflow: hidden;
 }
@@ -66,6 +84,10 @@
 	border-inline-start: 4px solid var(--trun-home);
 }
 
+.trun-game__summary:hover {
+	background: var(--trun-sunk);
+}
+
 .trun-game__summary:focus-visible {
 	outline: 2px solid currentColor;
 	outline-offset: -2px;
@@ -78,26 +100,105 @@
 .trun-game__line,
 .trun-game__kick {
 	font-weight: 400;
-	font-variant-numeric: tabular-nums;
 	color: var(--trun-muted);
 	font-size: 0.875rem;
 }
 
 .trun-game__body {
 	padding: 0 1rem 1rem;
+	border-inline-start: 4px solid var(--trun-home);
 }
 
-/* ---------- Odds bar ---------- */
+/* ---------- Team bar ---------- */
 
+/*
+ * Who is playing, before any number about them. Each side is a small grid:
+ * the logo spans both text rows, so the name and the record/moneyline line up
+ * against it rather than floating.
+ */
+.trun-teambar {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+	gap: 0.75rem;
+	margin-block: 1rem;
+}
+
+.trun-teambar__side {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	grid-template-areas:
+		"logo role"
+		"logo name"
+		"logo meta";
+	align-items: center;
+	column-gap: 0.75rem;
+	padding: 0.625rem 0.75rem;
+	border-radius: 6px;
+	background: var(--trun-sunk);
+	/* The team's color, as a spine rather than a fill: a filled card in two
+	   near-black navies is the collision all over again, and this reads at a
+	   glance without betting the layout on the color being distinctive. */
+	border-inline-start: 5px solid var(--trun-side, var(--trun-border));
+}
+
+.trun-teambar__side--away {
+	--trun-side: var(--trun-away);
+}
+
+.trun-teambar__side--home {
+	--trun-side: var(--trun-home);
+}
+
+.trun-teambar__logo {
+	grid-area: logo;
+	width: 44px;
+	height: 44px;
+	object-fit: contain;
+}
+
+.trun-teambar__role {
+	grid-area: role;
+	font-size: 0.6875rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--trun-muted);
+}
+
+.trun-teambar__name {
+	grid-area: name;
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.trun-teambar__meta {
+	grid-area: meta;
+	font-size: 0.875rem;
+	color: var(--trun-muted);
+}
+
+/* ---------- Odds bar and records strip ---------- */
+
+/*
+ * The cell separators are the grid's own background showing through a 1px
+ * gap, which means the column count has to divide the cell count exactly.
+ * auto-fit does not: six cells in five columns left a sixth alone on a second
+ * row with four columns' worth of bare grey beside it. So the counts are
+ * fixed -- six market cells over three columns, four records over four.
+ */
 .trun-oddsbar {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+	grid-template-columns: repeat(3, 1fr);
 	gap: 1px;
 	background: var(--trun-border);
 	border: 1px solid var(--trun-border);
 	border-radius: 6px;
 	overflow: hidden;
-	margin-block: 1rem 1.5rem;
+	margin-block: 1rem;
+}
+
+.trun-oddsbar--records {
+	grid-template-columns: repeat(4, 1fr);
+	margin-block-end: 1.75rem;
 }
 
 .trun-oddsbar__cell {
@@ -115,119 +216,27 @@
 	color: var(--trun-muted);
 }
 
+/* "(season)" qualifies the label without competing with it. */
+.trun-oddsbar__qualifier {
+	letter-spacing: 0;
+	text-transform: none;
+}
+
 .trun-oddsbar__value {
 	font-size: 1.125rem;
 	font-weight: 600;
-	font-variant-numeric: tabular-nums;
+	line-height: 1.3;
 }
 
-/* ---------- Editorial ---------- */
-
-.trun-notes {
-	margin-block: 1.5rem;
+/* The records strip carries four short values; it does not need the same size. */
+.trun-oddsbar--records .trun-oddsbar__value {
+	font-size: 1rem;
 }
 
-.trun-notes__heading {
+/* Line movement, under the line itself rather than trailing off the end of it. */
+.trun-oddsbar__note {
 	font-size: 0.75rem;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
 	color: var(--trun-muted);
-	margin-block-end: 0.5rem;
-}
-
-.trun-footer {
-	font-size: 0.8125rem;
-	color: var(--trun-muted);
-	margin-block-start: 2rem;
-}
-
-.trun-empty {
-	padding: 1rem;
-	border: 1px dashed var(--trun-border);
-	border-radius: 6px;
-	color: var(--trun-muted);
-}
-
-/* ---------- Tabs (JS enhancement, wide screens only) ---------- */
-
-.trun-week[data-tabs="on"] .trun-tablist {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.25rem;
-	margin-block-end: 1rem;
-	border-block-end: 1px solid var(--trun-border);
-}
-
-.trun-week[data-tabs="on"] .trun-tab {
-	padding: 0.5rem 0.875rem;
-	border: 0;
-	background: none;
-	cursor: pointer;
-	font: inherit;
-	font-size: 0.875rem;
-	border-block-end: 2px solid transparent;
-}
-
-.trun-week[data-tabs="on"] .trun-tab[aria-selected="true"] {
-	border-block-end-color: currentColor;
-	font-weight: 600;
-}
-
-.trun-week[data-tabs="on"] .trun-game > .trun-game__summary {
-	display: none;
-}
-
-.trun-week[data-tabs="on"] .trun-game[hidden] {
-	display: none;
-}
-
-/* ---------- Narrow screens: tables become stacked cards ---------- */
-
-@container (max-width: 640px) {
-	.trun-glance thead {
-		display: none;
-	}
-
-	.trun-glance tr {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 0.125rem 0.75rem;
-		padding-block: 0.625rem;
-		border-block-end: 1px solid var(--trun-border);
-	}
-
-	.trun-glance th,
-	.trun-glance td {
-		border: 0;
-		padding: 0;
-	}
-
-	.trun-glance tbody th {
-		grid-column: 1 / -1;
-	}
-}
-
-/* ---------- Print ---------- */
-
-@media print {
-	.trun-game {
-		break-inside: avoid;
-		border-color: #999;
-	}
-
-	.trun-game[open] .trun-game__summary,
-	.trun-game__summary {
-		list-style: none;
-	}
-
-	/* Expand everything — a printed page cannot be clicked open. */
-	.trun-game:not([open]) .trun-game__body {
-		display: block;
-	}
-
-	.trun-week[data-tabs="on"] .trun-game[hidden] {
-		display: block;
-	}
 }
 
 /* ---------- Stat modules ---------- */
@@ -242,13 +251,14 @@
 	text-transform: uppercase;
 	color: var(--trun-muted);
 	margin-block-end: 0.625rem;
+	padding-block-end: 0.375rem;
+	border-block-end: 1px solid var(--trun-rule);
 }
 
 .trun-table {
 	width: 100%;
 	border-collapse: collapse;
 	font-size: 0.9375rem;
-	font-variant-numeric: tabular-nums;
 }
 
 .trun-table th,
@@ -265,10 +275,17 @@
 	text-transform: uppercase;
 	font-weight: 600;
 	color: var(--trun-muted);
+	border-block-end-color: var(--trun-rule);
+	white-space: nowrap;
 }
 
 .trun-table tbody th {
 	font-weight: 600;
+}
+
+.trun-table tbody tr:last-child th,
+.trun-table tbody tr:last-child td {
+	border-block-end: 0;
 }
 
 .trun-table__team {
@@ -278,74 +295,30 @@
 }
 
 /*
- * Status carries weight, not just hue: the word itself is always the signal,
- * so this reads correctly in greyscale and to anyone who cannot separate the
- * colors.
+ * A two-sided table says whose it is in the caption, filled with that team's
+ * color. The ink is computed per color rather than assumed white — several
+ * secondaries (Pittsburgh's gold, the Rams' yellow) need black text.
  */
-.trun-status {
+.trun-table__caption {
+	caption-side: top;
+	text-align: left;
 	font-weight: 600;
+	font-size: 0.8125rem;
+	padding: 0.375rem 0.625rem;
+	border-radius: 5px 5px 0 0;
+	background: var(--trun-side, transparent);
+	color: var(--trun-side-ink, inherit);
 }
 
-.trun-status--out,
-.trun-status--injured-reserve {
-	color: #b3261e;
+.trun-scroll[data-side="away"] {
+	--trun-side: var(--trun-away);
+	--trun-side-ink: var(--trun-away-ink);
 }
 
-.trun-status--doubtful {
-	color: #a15c00;
+.trun-scroll[data-side="home"] {
+	--trun-side: var(--trun-home);
+	--trun-side-ink: var(--trun-home-ink);
 }
-
-.trun-status--questionable {
-	color: #6b5900;
-}
-
-@media (prefers-color-scheme: dark) {
-	.trun-status--out,
-	.trun-status--injured-reserve {
-		color: #f2b8b5;
-	}
-
-	.trun-status--doubtful {
-		color: #f5c164;
-	}
-
-	.trun-status--questionable {
-		color: #e0cd7a;
-	}
-}
-
-/* Narrow screens: the injury table reflows into one card per player. */
-@container (max-width: 640px) {
-	.trun-table--injuries thead {
-		display: none;
-	}
-
-	.trun-table--injuries tr {
-		display: grid;
-		grid-template-columns: auto 1fr auto;
-		gap: 0.125rem 0.5rem;
-		padding-block: 0.625rem;
-		border-block-end: 1px solid var(--trun-border);
-	}
-
-	.trun-table--injuries th,
-	.trun-table--injuries td {
-		border: 0;
-		padding: 0;
-	}
-
-	.trun-table--injuries td:last-child {
-		grid-column: 1 / -1;
-		color: var(--trun-muted);
-		font-size: 0.875rem;
-	}
-}
-
-/* -------------------------------------------------------------------------
- * Phase 2 stat modules. Structural only -- enough that the tables are
- * readable and do not push the page sideways on a phone. The visual pass
- * against the mockup is Phase 4.
- * ---------------------------------------------------------------------- */
 
 /*
  * The sample badge. Week 1 shows last season's numbers and weeks 2-4 show a
@@ -356,7 +329,7 @@
 	display: inline-block;
 	margin-inline-start: 0.5rem;
 	padding: 0.0625rem 0.375rem;
-	border: 1px solid var(--trun-border);
+	border: 1px solid var(--trun-rule);
 	border-radius: 0.75rem;
 	font-size: 0.6875rem;
 	letter-spacing: 0;
@@ -367,9 +340,9 @@
 }
 
 /*
- * Seven columns do not fit a phone. The table scrolls inside its own box
- * rather than widening the page, which is the one thing that would break
- * every other module on the screen.
+ * Wide tables scroll inside their own box rather than widening the page. Below
+ * 640px they stop being tables at all — see the container query further down —
+ * so this is the desktop safety net, not the phone answer.
  */
 .trun-scroll {
 	overflow-x: auto;
@@ -377,15 +350,7 @@
 }
 
 .trun-scroll + .trun-scroll {
-	margin-block-start: 1rem;
-}
-
-.trun-table__caption {
-	caption-side: top;
-	text-align: left;
-	font-weight: 600;
-	font-size: 0.8125rem;
-	padding-block-end: 0.375rem;
+	margin-block-start: 1.25rem;
 }
 
 /* Numbers right-align so magnitudes line up; the name column stays left. */
@@ -415,12 +380,357 @@
 }
 
 /*
- * The TGT RATE tooltip is the only thing standing between a proxy and a reader
- * who assumes it is TPRR, so the heading has to look like it explains itself
- * rather than like an underline artifact.
+ * Every column heading explains itself on hover. The TGT RATE one is the case
+ * that matters most — it is not TPRR, and this is what keeps that distinction
+ * on the page rather than only in docs/metrics.md — so the heading has to look
+ * like an explanation rather than an underline artifact.
+ *
+ * Known limit: title text does not open on touch. It is still in the markup
+ * and still reaches screen readers; a tap-to-open treatment is a later job.
  */
 .trun-table thead th abbr {
 	text-decoration: underline dotted;
 	text-underline-offset: 0.2em;
 	cursor: help;
+}
+
+.trun-oddsbar__label abbr {
+	text-decoration: underline dotted;
+	text-underline-offset: 0.2em;
+	cursor: help;
+}
+
+/*
+ * Status carries weight, not just hue: the word itself is always the signal,
+ * so this reads correctly in greyscale and to anyone who cannot separate the
+ * colors.
+ */
+.trun-status {
+	font-weight: 600;
+}
+
+.trun-status--out,
+.trun-status--injured-reserve {
+	color: #b3261e;
+}
+
+.trun-status--doubtful {
+	color: #a15c00;
+}
+
+.trun-status--questionable {
+	color: #6b5900;
+}
+
+/* ---------- Editorial ---------- */
+
+.trun-notes {
+	margin-block: 1.5rem;
+}
+
+.trun-notes__heading {
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--trun-muted);
+	margin-block-end: 0.5rem;
+}
+
+.trun-notes p:last-child {
+	margin-block-end: 0;
+}
+
+.trun-footer {
+	font-size: 0.8125rem;
+	color: var(--trun-muted);
+	margin-block-start: 2rem;
+	padding-block-start: 0.75rem;
+	border-block-start: 1px solid var(--trun-border);
+}
+
+.trun-empty {
+	padding: 1rem;
+	border: 1px dashed var(--trun-rule);
+	border-radius: 6px;
+	color: var(--trun-muted);
+}
+
+/* ---------- Tabs (JS enhancement, wide screens only) ---------- */
+
+/*
+ * Sixteen matchups do not wrap into a tidy block. The strip scrolls sideways
+ * on one line, which reads as a deliberate control rather than as a paragraph
+ * of buttons.
+ */
+.trun-week[data-tabs="on"] .trun-tablist {
+	display: flex;
+	gap: 0.25rem;
+	margin-block-end: 1rem;
+	border-block-end: 1px solid var(--trun-rule);
+	overflow-x: auto;
+	scrollbar-width: thin;
+	-webkit-overflow-scrolling: touch;
+}
+
+.trun-week[data-tabs="on"] .trun-tab {
+	padding: 0.5rem 0.875rem;
+	border: 0;
+	background: none;
+	cursor: pointer;
+	font: inherit;
+	font-size: 0.875rem;
+	white-space: nowrap;
+	color: var(--trun-muted);
+	border-block-end: 2px solid transparent;
+}
+
+.trun-week[data-tabs="on"] .trun-tab:hover {
+	color: inherit;
+}
+
+.trun-week[data-tabs="on"] .trun-tab[aria-selected="true"] {
+	border-block-end-color: currentColor;
+	font-weight: 600;
+	color: inherit;
+}
+
+.trun-week[data-tabs="on"] .trun-game > .trun-game__summary {
+	display: none;
+}
+
+.trun-week[data-tabs="on"] .trun-game[hidden] {
+	display: none;
+}
+
+/* ---------- Narrow containers: tables become stacked cards ---------- */
+
+@container (max-width: 640px) {
+	.trun-glance thead {
+		display: none;
+	}
+
+	.trun-glance tr {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.125rem 0.75rem;
+		padding-block: 0.625rem;
+		border-block-end: 1px solid var(--trun-border);
+	}
+
+	.trun-glance th,
+	.trun-glance td {
+		border: 0;
+		padding: 0;
+	}
+
+	.trun-glance tbody th {
+		grid-column: 1 / -1;
+	}
+
+	/*
+	 * The injury table reflows into one card per player.
+	 *
+	 * The areas are named rather than left to auto-flow. Each row is its own
+	 * grid, so `auto 1fr auto` sized its columns from that row's own content
+	 * and every player's name landed somewhere different down the list --
+	 * which reads as a rendering fault rather than as a table.
+	 */
+	.trun-table--injuries thead {
+		display: none;
+	}
+
+	.trun-table--injuries tr {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		grid-template-areas:
+			"team player pos"
+			"status status status"
+			"note note note";
+		gap: 0.125rem 0.5rem;
+		padding-block: 0.625rem;
+		border-block-end: 1px solid var(--trun-border);
+	}
+
+	.trun-table--injuries th,
+	.trun-table--injuries td {
+		border: 0;
+		padding: 0;
+	}
+
+	.trun-table--injuries td:nth-child(1) {
+		grid-area: team;
+	}
+
+	.trun-table--injuries th {
+		grid-area: player;
+	}
+
+	.trun-table--injuries td:nth-child(3) {
+		grid-area: pos;
+		color: var(--trun-muted);
+		font-size: 0.8125rem;
+	}
+
+	.trun-table--injuries td:nth-child(4) {
+		grid-area: status;
+	}
+
+	/* An absent note collapses to nothing rather than leaving a blank line. */
+	.trun-table--injuries td:nth-child(5) {
+		grid-area: note;
+		color: var(--trun-muted);
+		font-size: 0.875rem;
+	}
+
+	.trun-table--injuries td:nth-child(5):empty {
+		display: none;
+	}
+
+	/*
+	 * The three stat tables stack. Seven columns cannot be read on a phone
+	 * sideways-scrolled either, and a reader who scrolls a table right loses
+	 * the row header that said whose number it is. Each cell instead prints
+	 * its own heading, out of the data-label the renderer emits.
+	 */
+	.trun-table--efficiency thead,
+	.trun-table--passing thead,
+	.trun-table--rushing thead {
+		display: none;
+	}
+
+	.trun-table--efficiency tr,
+	.trun-table--passing tr,
+	.trun-table--rushing tr {
+		display: block;
+		padding-block: 0.625rem;
+		border-block-end: 1px solid var(--trun-border);
+	}
+
+	.trun-table--efficiency tbody th,
+	.trun-table--passing tbody th,
+	.trun-table--rushing tbody th {
+		display: block;
+		padding: 0 0 0.25rem;
+		border: 0;
+		font-size: 1rem;
+	}
+
+	.trun-table--efficiency td,
+	.trun-table--passing td,
+	.trun-table--rushing td {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 1rem;
+		padding: 0.125rem 0;
+		border: 0;
+	}
+
+	.trun-table--efficiency td::before,
+	.trun-table--passing td::before,
+	.trun-table--rushing td::before {
+		content: attr(data-label);
+		font-size: 0.6875rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--trun-muted);
+	}
+
+	/* The passing table's role cell is an attribute of the name, not a stat. */
+	.trun-table--passing td:first-of-type {
+		font-size: 0.875rem;
+	}
+
+	/* Nothing overflows once stacked, so the scroll box would only clip. */
+	.trun-scroll {
+		overflow-x: visible;
+	}
+
+	/* Three columns of market data do not fit; two do, and 6 and 4 both halve. */
+	.trun-oddsbar,
+	.trun-oddsbar--records {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+/* ---------- Dark ---------- */
+
+/*
+ * The tokens above are all relative to currentColor, so most of the page
+ * follows the theme without help. These are the values that cannot be: fixed
+ * status colors, which need lifting off a dark ground to stay legible.
+ */
+@media (prefers-color-scheme: dark) {
+	.trun-status--out,
+	.trun-status--injured-reserve {
+		color: #f2b8b5;
+	}
+
+	.trun-status--doubtful {
+		color: #f5c164;
+	}
+
+	.trun-status--questionable {
+		color: #e0cd7a;
+	}
+
+	.trun-week {
+		--trun-sunk: color-mix(in srgb, currentColor 8%, transparent);
+	}
+}
+
+/* ---------- Print ---------- */
+
+@media print {
+	.trun-game {
+		break-inside: avoid;
+		border-color: #999;
+	}
+
+	.trun-game[open] .trun-game__summary,
+	.trun-game__summary {
+		list-style: none;
+	}
+
+	/* Expand everything — a printed page cannot be clicked open. */
+	.trun-game:not([open]) .trun-game__body {
+		display: block;
+	}
+
+	.trun-week[data-tabs="on"] .trun-game[hidden] {
+		display: block;
+	}
+
+	.trun-week[data-tabs="on"] .trun-game > .trun-game__summary {
+		display: flex;
+	}
+
+	/* The tab strip is a control; on paper it is a row of dead words. */
+	.trun-week[data-tabs="on"] .trun-tablist {
+		display: none;
+	}
+
+	/* Logos cost ink and say nothing the name beside them does not. */
+	.trun-teambar__logo {
+		display: none;
+	}
+
+	.trun-teambar__side {
+		background: none;
+	}
+
+	/*
+	 * Filled captions print as solid blocks. Keep the team's color as a rule
+	 * and put the text back to black, which also survives a greyscale printer.
+	 */
+	.trun-table__caption {
+		background: none;
+		color: inherit;
+		border-inline-start: 4px solid var(--trun-side, #999);
+		border-radius: 0;
+	}
+
+	.trun-scroll {
+		overflow-x: visible;
+	}
 }

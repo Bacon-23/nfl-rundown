@@ -36,6 +36,7 @@ A refresh can run mid-edit without eating a paragraph.
 | `pipeline/metrics/` | Stat computation over nflverse play-by-play. |
 | `pipeline/schema.py` | The payload contract. Renaming a field here is a breaking change. |
 | `wordpress/trinity-rundown/` | The plugin. Auto-deploys via WordPress.com GitHub Deployments. |
+| `tools/preview.php` | Renders the front end from a payload, with no WordPress. |
 
 ## Running the pipeline
 
@@ -265,6 +266,32 @@ docker run --rm -v "$PWD:/repo:ro" -w /repo composer:2 sh -c   'composer global 
 syntax, and class-file naming. Both fight conventions the plugin already
 applies consistently, and neither affects what runs.
 
+## Seeing the page without deploying
+
+`tools/preview.php` renders a `build/*.json` payload to a standalone HTML file
+using the real `storage.php` and `render.php`. It fakes the database, not the
+code: rows are built by hand and passed through `TRUN_Storage::view_row()`, so
+the stats/overrides/notes merge runs exactly as it does on the site.
+
+```bash
+python -m pipeline.build_week --season 2026 --week 1 --replay-odds --dry-run
+
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src php:8.2-cli \
+  php tools/preview.php build/2026-week-01.json build/preview.html --notes
+```
+
+Open `build/preview.html`. It *links* the real stylesheet rather than inlining
+it, so a CSS edit needs only a reload.
+
+| Flag | What it does |
+|---|---|
+| `--notes` | attach sample editorial copy, so the writer's sections render |
+| `--game=NE_SEA` | render one matchup, for faster iteration |
+| `--locked` | render as a published week, out of `published_json` |
+
+What it cannot tell you: the theme's own typography and colors, which only
+staging has. Judge markup, layout and reflow here; judge color there.
+
 ## Current state
 
 Landed: schedule, venue, odds with nflverse fallback, opening-line capture,
@@ -382,8 +409,61 @@ plan always called for, run on staging against live Week 1 data -- which routes
 through the prior-season fallback and so exercises the same path a synthetic
 2025 run would. Production launches Week 2.
 
-Still to build: the rehearsal itself, the visual pass against the mockup
-(Phase 4), then the production cutover (Phase 5). Two dated hazards sit in
-that window -- the odds fixture is per-week, so the hourly staging build fails
-the moment Week 2 opens without a re-recorded fixture, and the `/health` probe
-has no retry, which cost one build at 02:45 UTC on 2026-09-08.
+**Phase 4 landed 2026-09-08.** The page now looks like the mockup rather than
+like a structural placeholder, and two things it had never shown are on it.
+
+*The header the payload was already carrying.* `ats_record`, `ou_record`,
+`moneyline` and `logo` have been in every payload since Phase 1, and the front
+end rendered none of them -- a reader met a stat table without being told whose
+it was. There is now a team bar (logo, name, straight-up record, moneyline) and
+a season ATS / over-under strip. The straight-up record is new in the pipeline:
+`records.py` tallies it in the same pass as the other two, outside both line
+guards, because a game the book never posted still had a winner.
+
+*The team-color collision, in general rather than as one pair.* `docs/plan.md`
+named New England and Seattle sharing `#002244`. Checked against
+`load_teams()`, **four** current teams are that navy -- Dallas, Denver, New
+England, Seattle -- with Atlanta and Tampa Bay both `#A71930` and Las Vegas and
+Pittsburgh both `#000000`. Since `2026_01_NE_SEA` sorts first, the panel that
+renders expanded was the one with no accent at all. The renderer now falls the
+*away* side back to `team_color2` on any collision, keeping the home color
+fixed so the summary's left rule does not shift; a missing or equal secondary
+falls through to the neutral rather than emitting a color. Verified: zero
+collisions across all 16 Week 1 panels.
+
+Text over a team color is no longer guessed at. `trun_ink_for()` picks black or
+white by relative luminance, crossing over at 0.1791 where contrast against
+white and against black are equal -- Pittsburgh's gold and the Rams' yellow
+need black, and eyeballing it is how a header ends up at 3:1.
+
+Two smaller things that only showed up on the rendered page:
+
+- **The odds bar drew its cell separators as background bleeding through a 1px
+  grid gap**, so six cells in an auto-fit five-column grid left the sixth alone
+  beside four columns of bare grey. Column counts are now fixed to divide the
+  cell counts exactly.
+- **The injury table's phone reflow sized its columns per row**, since each
+  `<tr>` is its own grid -- so every player's name landed somewhere different
+  down the list. It uses named grid areas now.
+
+The three stat tables stop scrolling sideways on a phone and stack into cards
+instead, each cell printing its own heading from a `data-label` the renderer
+emits. Every column heading carries its definition from `docs/metrics.md` as a
+tooltip, not just PROE and TGT RATE. Known limit, stated in the CSS rather than
+papered over: `title` does not open on touch.
+
+`tools/preview.php` is how all of that was checked -- see above. It is the
+first committed way to see the page without a deploy; the harness used in
+Phase 2 was ad hoc and lost.
+
+Gates at Phase 4: 195 offline tests and 8 live, `php -l` on all eight PHP
+files, phpcs clean on the committed ruleset, and no CRLF. The rendered page was
+checked at 900px and 375px, in print, and with JavaScript disabled, and against
+a payload stripped of the new fields -- a week frozen into `published_json`
+before this change renders dashes and the neutral accent rather than erroring.
+
+Still to do: the rehearsal itself, then the production cutover (Phase 5). One
+dated hazard sits in that window -- the odds fixture is per-week, so the hourly
+staging build fails the moment Week 2 opens without a re-recorded fixture. The
+`/health` probe's missing retry, which cost one build at 02:45 UTC on
+2026-09-08, was fixed in `90efc81`.

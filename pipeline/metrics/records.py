@@ -1,7 +1,8 @@
-"""Against-the-spread and over/under season records.
+"""Straight-up, against-the-spread, and over/under season records.
 
-Both are computed from completed games in the nflverse schedule, which already
-carries the closing line and the final score. No extra feed is involved.
+All three are computed from completed games in the nflverse schedule, which
+already carries the closing line and the final score. No extra feed is
+involved.
 
 The convention worth stating once: nflverse's `spread_line` is home-relative
 and positive when the home team is favored, so the home side covers when
@@ -28,7 +29,8 @@ class Record:
     """A won-lost-pushed tally.
 
     For over/under, `won` counts overs and `lost` counts unders, which is how
-    such records are conventionally printed.
+    such records are conventionally printed. Straight up, `pushed` counts ties
+    -- rare, but the reason an NFL record is sometimes three numbers.
     """
 
     won: int = 0
@@ -50,12 +52,15 @@ class Record:
 
 @dataclass
 class TeamRecords:
+    su: Record = field(default_factory=Record)
     ats: Record = field(default_factory=Record)
     ou: Record = field(default_factory=Record)
 
 
 def season_records(games: Iterable[ScheduledGame]) -> dict[str, TeamRecords]:
-    """Tally ATS and over/under records per team over completed regular-season games.
+    """Tally straight-up, ATS, and over/under records per team.
+
+    Over completed regular-season games only.
 
     A team with nothing to report is absent from the result rather than
     present with an empty record, so the renderer can show a dash instead of a
@@ -69,6 +74,18 @@ def season_records(games: Iterable[ScheduledGame]) -> dict[str, TeamRecords]:
 
         margin = game.home_score - game.away_score
         combined = game.home_score + game.away_score
+
+        # Straight up needs no line at all, so it is counted outside the two
+        # guards below: a game the book never posted still had a winner.
+        if margin == 0:
+            tallies.setdefault(game.home, _Tally()).su_pushed += 1
+            tallies.setdefault(game.away, _Tally()).su_pushed += 1
+        else:
+            winner, loser = (
+                (game.home, game.away) if margin > 0 else (game.away, game.home)
+            )
+            tallies.setdefault(winner, _Tally()).su_won += 1
+            tallies.setdefault(loser, _Tally()).su_lost += 1
 
         # The two lines are independent: a game missing one still counts
         # toward the other.
@@ -107,6 +124,9 @@ def load_records(season: int) -> dict[str, TeamRecords]:
 class _Tally:
     """Mutable accumulator, frozen into a `TeamRecords` at the end."""
 
+    su_won: int = 0
+    su_lost: int = 0
+    su_pushed: int = 0
     ats_won: int = 0
     ats_lost: int = 0
     ats_pushed: int = 0
@@ -116,6 +136,7 @@ class _Tally:
 
     def freeze(self) -> TeamRecords:
         return TeamRecords(
+            su=Record(self.su_won, self.su_lost, self.su_pushed),
             ats=Record(self.ats_won, self.ats_lost, self.ats_pushed),
             ou=Record(self.ou_won, self.ou_lost, self.ou_pushed),
         )

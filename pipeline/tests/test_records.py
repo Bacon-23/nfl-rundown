@@ -1,4 +1,4 @@
-"""ATS and over/under season records.
+"""Straight-up, ATS, and over/under season records.
 
 The arithmetic is easy to get subtly wrong in ways nobody notices until a
 published record disagrees with every other site: an exact push counted as a
@@ -35,6 +35,50 @@ def played(
         away_score=away_score,
         home_score=home_score,
     )
+
+
+class TestStraightUp:
+    """The record beside the moneyline in the header, e.g. "12-5"."""
+
+    def test_the_higher_score_wins(self):
+        records = season_records([played(away_score=17, home_score=27)])
+
+        assert records["SEA"].su == Record(won=1, lost=0, pushed=0)
+        assert records["NE"].su == Record(won=0, lost=1, pushed=0)
+
+    def test_the_away_side_wins_when_it_outscores_the_home_side(self):
+        records = season_records([played(away_score=27, home_score=17)])
+
+        assert records["SEA"].su == Record(won=0, lost=1, pushed=0)
+        assert records["NE"].su == Record(won=1, lost=0, pushed=0)
+
+    def test_a_tie_counts_for_neither_side_and_prints_as_the_third_number(self):
+        """NFL ties are rare and real. "9-7-1" is why Record has a third field."""
+        records = season_records([played(away_score=20, home_score=20)])
+
+        assert records["SEA"].su == Record(won=0, lost=0, pushed=1)
+        assert str(records["SEA"].su) == "0-0-1"
+
+    def test_a_game_the_book_never_posted_still_has_a_winner(self):
+        """Straight up needs no line, so it sits outside both line guards."""
+        games = [
+            played(
+                away_score=17, home_score=27, spread_line=None, total_line=None
+            )
+        ]
+        records = season_records(games)
+
+        assert records["SEA"].su == Record(won=1, lost=0, pushed=0)
+        assert records["SEA"].ats == Record()
+        assert records["SEA"].ou == Record()
+
+    def test_playoff_games_do_not_inflate_it_either(self):
+        games = [
+            played(away_score=17, home_score=27, week=18),
+            played(away_score=17, home_score=27, week=19),
+        ]
+
+        assert season_records(games)["SEA"].su == Record(won=1, lost=0, pushed=0)
 
 
 class TestAgainstTheSpread:
