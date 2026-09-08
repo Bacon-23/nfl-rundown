@@ -353,6 +353,7 @@ function trun_admin_render_game( object $row ): void {
 
 		<?php trun_admin_render_flags( $row, $game ); ?>
 		<?php trun_admin_render_readout( $game ); ?>
+		<?php trun_admin_render_stats( $game ); ?>
 
 		<div class="trun-adm__notes">
 			<?php foreach ( trun_admin_note_fields() as $key => $spec ) : ?>
@@ -416,6 +417,7 @@ function trun_admin_render_readout( array $game ): void {
 		[ $home . ' ' . __( 'total', 'trinity-rundown' ), (string) trun_get( $game, 'odds.home_team_total', '--' ) ],
 		[ __( 'Weather', 'trinity-rundown' ), (string) trun_get( $game, 'weather.summary', 'TBD' ) ],
 		[ __( 'Injuries listed', 'trinity-rundown' ), (string) count( (array) trun_get( $game, 'injuries', [] ) ) ],
+		[ __( 'Stats basis', 'trinity-rundown' ), trun_admin_stats_basis( $game ) ],
 	];
 
 	?>
@@ -427,6 +429,60 @@ function trun_admin_render_readout( array $game ): void {
 			</div>
 		<?php endforeach; ?>
 	</dl>
+	<?php
+}
+
+/**
+ * What sample the stat tables rest on, in one phrase.
+ *
+ * All three modules share a basis, so reading it off whichever one is present
+ * is enough. It matters most in week 1, where every number on the screen comes
+ * from last season and a writer who does not notice would describe it as this
+ * year's form.
+ */
+function trun_admin_stats_basis( array $game ): string {
+	foreach ( [ 'efficiency', 'passing', 'rushing' ] as $module ) {
+		$badge = trun_get( $game, $module . '.badge', '' );
+		if ( '' !== $badge ) {
+			return (string) $badge;
+		}
+		if ( [] !== trun_get( $game, $module, [] ) ) {
+			// Present, but past the weeks that carry a badge.
+			return __( 'season to date', 'trinity-rundown' );
+		}
+	}
+
+	return __( 'no stat tables yet', 'trinity-rundown' );
+}
+
+/**
+ * The stat tables as the page will show them, read-only.
+ *
+ * Rendered with the front-end functions rather than a second admin-only set:
+ * the point of putting them here is to see what the reader will see, and two
+ * renderers would eventually disagree about that.
+ *
+ * Collapsed by default. The writer's job on this screen is the prose, and
+ * three tables per game across sixteen games is a lot of screen to scroll past
+ * to reach a textarea.
+ */
+function trun_admin_render_stats( array $game ): void {
+	$tables = trun_render_efficiency( $game )
+		. trun_render_passing( $game )
+		. trun_render_rushing( $game );
+
+	if ( '' === $tables ) {
+		return;
+	}
+
+	?>
+	<details class="trun-adm__stats">
+		<summary><?php esc_html_e( 'Stat tables', 'trinity-rundown' ); ?></summary>
+		<p class="trun-adm__hint">
+			<?php esc_html_e( 'Read-only. These come from the pipeline and are rewritten on every run.', 'trinity-rundown' ); ?>
+		</p>
+		<?php echo $tables; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built by render.php, which escapes every value it emits. ?>
+	</details>
 	<?php
 }
 

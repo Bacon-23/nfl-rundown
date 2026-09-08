@@ -83,6 +83,37 @@ def stats_season(season: int, week: int) -> int:
     return season - 1 if week <= PRIOR_SEASON_THROUGH_WEEK else season
 
 # --------------------------------------------------------------------------
+# Stat modules
+# --------------------------------------------------------------------------
+
+#: How many receivers and backs each team's table lists. The mockup shows five
+#: and two; three backs covers a genuine committee, which the mockup's example
+#: matchup happened not to have.
+RECEIVER_ROWS: Final[int] = 5
+RUSHER_ROWS: Final[int] = 3
+
+#: Carries per game a back needs before he belongs in a workload table.
+#: Without a floor the third row fills up with fullbacks and special-teamers --
+#: over 2025 that was Reggie Gilliam and Kyle Juszczyk at a tenth of a carry a
+#: game. They are real players with real snap shares, but "workload" is the
+#: column heading, and theirs is not a rushing workload. Expressed per game
+#: rather than as a season total so it means the same thing in week 2 as in
+#: week 12.
+RUSHER_MIN_ATT_PER_GAME: Final[float] = 1.0
+
+#: Pace is measured in neutral game states only, because trailing teams hurry
+#: and leading teams stall -- which says more about the scoreboard than about
+#: the offense.
+PACE_WP_RANGE: Final[tuple[float, float]] = (0.20, 0.80)
+PACE_DOWNS: Final[tuple[int, ...]] = (1, 2)
+
+#: Longest snap-to-snap gap still counted as pace. Anything above this is a
+#: timeout, an injury, a replay review, or a TV break -- the broadcast rather
+#: than the huddle. Real snap-to-snap intervals sit around 30 seconds, so this
+#: only ever trims the tail.
+PACE_MAX_GAP_SECONDS: Final[float] = 60.0
+
+# --------------------------------------------------------------------------
 # WordPress
 # --------------------------------------------------------------------------
 

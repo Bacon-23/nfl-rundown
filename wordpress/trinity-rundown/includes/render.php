@@ -6,8 +6,9 @@
  * search engines and for readers without JavaScript. rundown.js only upgrades
  * the accordion into tabs on wide screens.
  *
- * Phase 0 renders the header/odds bar and the editorial sections. The stat
- * tables land in Phases 1-2 and hang off trun_render_modules().
+ * The header and odds bar come first, then the stat tables off
+ * trun_render_modules(), then the editorial sections. Every stat value is a
+ * fraction in the payload and becomes a percentage here; see docs/metrics.md.
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -152,10 +153,183 @@ function trun_render_odds_bar( array $game ): string {
  *
  * Each module renders independently and returns an empty string when it has
  * no data, so a missing feed costs one section rather than the whole page.
- * Efficiency, passing, and rushing slot in here as they land.
  */
 function trun_render_modules( array $game ): string {
-	return trun_render_injuries( $game );
+	return trun_render_injuries( $game )
+		. trun_render_efficiency( $game )
+		. trun_render_passing( $game )
+		. trun_render_rushing( $game );
+}
+
+/**
+ * Team efficiency: how these two offenses play, before anyone is named.
+ *
+ * Every rate in the payload is a fraction, so one formatter handles the lot.
+ * See docs/metrics.md for what each column actually measures -- "pace" in
+ * particular has no single industry definition, and ours is spelled out.
+ */
+function trun_render_efficiency( array $game ): string {
+	$rows = trun_module_rows( $game, 'efficiency.rows' );
+
+	if ( ! $rows ) {
+		return '';
+	}
+
+	$proe_heading = trun_abbr(
+		__( 'PROE', 'trinity-rundown' ),
+		__( "Pass rate over expected, against nflfastR's model. Full season.", 'trinity-rundown' )
+	);
+
+	ob_start();
+	?>
+	<section class="trun-module trun-module--efficiency">
+		<h3 class="trun-module__heading">
+			<?php esc_html_e( 'Team Efficiency', 'trinity-rundown' ); ?>
+			<?php echo trun_render_badge( $game, 'efficiency' ); ?>
+		</h3>
+		<div class="trun-scroll">
+			<table class="trun-table trun-table--efficiency">
+				<thead>
+					<tr>
+						<th scope="col"><?php esc_html_e( 'Team', 'trinity-rundown' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Pass rate', 'trinity-rundown' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Rush rate', 'trinity-rundown' ); ?></th>
+						<th scope="col"><?php echo $proe_heading; ?></th>
+						<th scope="col"><?php esc_html_e( 'Pace (sec/play)', 'trinity-rundown' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Plays/gm', 'trinity-rundown' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'EPA/play (rk)', 'trinity-rundown' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+				<?php foreach ( $rows as $row ) : ?>
+					<tr>
+						<th scope="row"><?php echo esc_html( $row['team'] ?? '' ); ?></th>
+						<td><?php echo esc_html( trun_percent( $row['pass_rate'] ?? null ) ); ?></td>
+						<td><?php echo esc_html( trun_percent( $row['rush_rate'] ?? null ) ); ?></td>
+						<td><?php echo esc_html( trun_percent( $row['proe'] ?? null, 1, true ) ); ?></td>
+						<td><?php echo esc_html( trun_decimal( $row['pace'] ?? null, 1 ) ); ?></td>
+						<td><?php echo esc_html( trun_decimal( $row['plays_per_game'] ?? null, 1 ) ); ?></td>
+						<td><?php echo esc_html( trun_epa_cell( $row ) ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * Passing game, one table per side.
+ *
+ * The third column is the one to be careful about. It is NOT targets per route
+ * run -- that needs charted route data we do not license -- so it is labeled
+ * TGT RATE and carries a tooltip saying what it actually is. Do not rename it
+ * to TPRR, however much the mockup wants to.
+ */
+function trun_render_passing( array $game ): string {
+	$sides = trun_module_sides( $game, 'passing' );
+
+	if ( ! $sides ) {
+		return '';
+	}
+
+	// The one heading on the page that would mislead without its tooltip.
+	$rate_heading = trun_abbr(
+		__( 'Tgt rate', 'trinity-rundown' ),
+		__( 'Targets per estimated pass snap -- a proxy for TPRR, which requires charted route data.', 'trinity-rundown' )
+	);
+
+	ob_start();
+	?>
+	<section class="trun-module trun-module--passing">
+		<h3 class="trun-module__heading">
+			<?php esc_html_e( 'Passing Game', 'trinity-rundown' ); ?>
+			<?php echo trun_render_badge( $game, 'passing' ); ?>
+		</h3>
+		<?php foreach ( $sides as $side ) : ?>
+			<div class="trun-scroll">
+				<table class="trun-table trun-table--passing">
+					<caption class="trun-table__caption"><?php echo esc_html( $side['label'] ); ?></caption>
+					<thead>
+						<tr>
+							<th scope="col"><?php esc_html_e( 'Player', 'trinity-rundown' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Role', 'trinity-rundown' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Tgt share', 'trinity-rundown' ); ?></th>
+							<th scope="col"><?php echo $rate_heading; ?></th>
+							<th scope="col"><?php esc_html_e( 'Rec yds/gm', 'trinity-rundown' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ( $side['rows'] as $row ) : ?>
+						<tr>
+							<th scope="row"><?php echo esc_html( $row['player'] ?? '' ); ?></th>
+							<td><?php echo esc_html( $row['role'] ?? '' ); ?></td>
+							<td><?php echo esc_html( trun_percent( $row['target_share'] ?? null, 1 ) ); ?></td>
+							<td><?php echo esc_html( trun_percent( $row['target_rate'] ?? null, 1 ) ); ?></td>
+							<td><?php echo esc_html( trun_decimal( $row['rec_yds_per_game'] ?? null, 1 ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+		<?php endforeach; ?>
+	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * Running back workload, one table per side.
+ *
+ * Sorted on snap share rather than carries: 14 carries in a blowout and 14 in
+ * a one-score game are not the same workload, and the snap column says so.
+ */
+function trun_render_rushing( array $game ): string {
+	$sides = trun_module_sides( $game, 'rushing' );
+
+	if ( ! $sides ) {
+		return '';
+	}
+
+	ob_start();
+	?>
+	<section class="trun-module trun-module--rushing">
+		<h3 class="trun-module__heading">
+			<?php esc_html_e( 'Running Back Workload', 'trinity-rundown' ); ?>
+			<?php echo trun_render_badge( $game, 'rushing' ); ?>
+		</h3>
+		<?php foreach ( $sides as $side ) : ?>
+			<div class="trun-scroll">
+				<table class="trun-table trun-table--rushing">
+					<caption class="trun-table__caption"><?php echo esc_html( $side['label'] ); ?></caption>
+					<thead>
+						<tr>
+							<th scope="col"><?php esc_html_e( 'Player', 'trinity-rundown' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Snap %', 'trinity-rundown' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Rush att/gm', 'trinity-rundown' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Tgt share', 'trinity-rundown' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Yds/att', 'trinity-rundown' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ( $side['rows'] as $row ) : ?>
+						<tr>
+							<th scope="row"><?php echo esc_html( $row['player'] ?? '' ); ?></th>
+							<td><?php echo esc_html( trun_percent( $row['snap_share'] ?? null ) ); ?></td>
+							<td><?php echo esc_html( trun_decimal( $row['rush_att_per_game'] ?? null, 1 ) ); ?></td>
+							<td><?php echo esc_html( trun_percent( $row['target_share'] ?? null, 1 ) ); ?></td>
+							<td><?php echo esc_html( trun_decimal( $row['yards_per_att'] ?? null, 1 ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+		<?php endforeach; ?>
+	</section>
+	<?php
+	return (string) ob_get_clean();
 }
 
 /**
@@ -318,6 +492,135 @@ function trun_get( array $data, string $path, $fallback = '' ) {
 		$node = $node[ $segment ];
 	}
 	return ( null === $node || '' === $node ) ? $fallback : $node;
+}
+
+/**
+ * A module's row list, or an empty array when the module is absent.
+ *
+ * Pipeline payloads are treated as possibly-absent at every level: a module
+ * that failed upstream is simply not in the JSON, and that has to render as a
+ * missing section rather than as a PHP notice.
+ */
+function trun_module_rows( array $game, string $path ): array {
+	$rows = trun_get( $game, $path, [] );
+	return is_array( $rows ) ? array_filter( $rows, 'is_array' ) : [];
+}
+
+/**
+ * The away and home halves of a two-sided module, labeled with the team.
+ *
+ * A side with no rows is dropped rather than rendered as an empty table: one
+ * team having no listed backs is a real possibility, and a header over nothing
+ * reads as a bug.
+ */
+function trun_module_sides( array $game, string $module ): array {
+	$sides = [];
+
+	foreach ( [ 'away', 'home' ] as $side ) {
+		$rows = trun_module_rows( $game, $module . '.' . $side );
+		if ( ! $rows ) {
+			continue;
+		}
+		$sides[] = [
+			'label' => (string) trun_get( $game, $side . '.name', trun_get( $game, $side . '.abbr', '' ) ),
+			'rows'  => $rows,
+		];
+	}
+
+	return $sides;
+}
+
+/**
+ * The sample badge: "2025 season", "n = 3 games", or nothing at all.
+ *
+ * Week 1 publishes last season's numbers and weeks 2 to 4 publish a thin
+ * sample. Both say so on the page -- that is the whole point of the badge, and
+ * it is the pipeline that decides the wording, not this function.
+ */
+function trun_render_badge( array $game, string $module ): string {
+	$badge = trun_get( $game, $module . '.badge', '' );
+
+	if ( '' === $badge ) {
+		return '';
+	}
+
+	return '<span class="trun-badge">' . esc_html( (string) $badge ) . '</span>';
+}
+
+/**
+ * A column heading with an explanation attached.
+ *
+ * Used where the label alone would mislead. TGT RATE is the case that matters:
+ * it is not TPRR, and the tooltip is what keeps the distinction on the page
+ * rather than only in the docs.
+ */
+function trun_abbr( string $label, string $explanation ): string {
+	return '<abbr title="' . esc_attr( $explanation ) . '">' . esc_html( $label ) . '</abbr>';
+}
+
+/**
+ * Render a fraction as a percentage.
+ *
+ * Everything in the payload is stored as a fraction between 0 and 1, so this
+ * is the only place a percent sign is applied. `$signed` is for PROE, where
+ * the direction is the whole point and "+2.4%" says more than "2.4%".
+ */
+function trun_percent( $value, int $places = 0, bool $signed = false ): string {
+	if ( null === $value || '' === $value || ! is_numeric( $value ) ) {
+		return '--';
+	}
+
+	$percent = (float) $value * 100;
+	$text    = number_format( $percent, $places ) . '%';
+
+	if ( $signed && $percent > 0 ) {
+		$text = '+' . $text;
+	}
+
+	return $text;
+}
+
+/** A plain number, or a dash. Never "0" standing in for "we do not know". */
+function trun_decimal( $value, int $places = 1 ): string {
+	if ( null === $value || '' === $value || ! is_numeric( $value ) ) {
+		return '--';
+	}
+
+	return number_format( (float) $value, $places );
+}
+
+/**
+ * The EPA cell: the number and where it ranks, e.g. "+0.16 (1st)".
+ *
+ * The rank alone is what the mockup shows, but a rank with no value behind it
+ * cannot be checked against anything.
+ */
+function trun_epa_cell( array $row ): string {
+	$epa = $row['epa_per_play'] ?? null;
+
+	if ( null === $epa || ! is_numeric( $epa ) ) {
+		return '--';
+	}
+
+	$text = ( $epa > 0 ? '+' : '' ) . number_format( (float) $epa, 2 );
+	$rank = $row['epa_rank'] ?? null;
+
+	if ( $rank && is_numeric( $rank ) ) {
+		$text .= ' (' . trun_ordinal( (int) $rank ) . ')';
+	}
+
+	return $text;
+}
+
+/** 1 -> "1st", 2 -> "2nd", 11 -> "11th". */
+function trun_ordinal( int $number ): string {
+	$suffix = 'th';
+
+	if ( ! in_array( $number % 100, [ 11, 12, 13 ], true ) ) {
+		$suffix = [ 'th', 'st', 'nd', 'rd' ][ $number % 10 ] ?? 'th';
+	}
+
+	return $number . $suffix;
 }
 
 function trun_matchup_label( array $game ): string {

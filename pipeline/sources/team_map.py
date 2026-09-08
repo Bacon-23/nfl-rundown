@@ -24,6 +24,11 @@ class UnmappedTeamError(LookupError):
 #: sportsbook's spelling differs from nflverse's. nflverse keeps historical
 #: abbreviations alive, so these collapse onto the current team.
 _ALIASES: dict[str, str] = {
+    # nflverse is not internally consistent: the roster file codes Arizona
+    # "AZ" while schedules, play-by-play, snap counts, and player stats all
+    # use "ARI". Without this, Arizona's players silently fail to join and the
+    # team publishes empty tables -- which is how this alias was found.
+    "az": "ARI",
     "oakland raiders": "LV",
     "las vegas raiders": "LV",
     "san diego chargers": "LAC",

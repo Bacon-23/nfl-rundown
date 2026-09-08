@@ -289,6 +289,20 @@ def test_unmappable_team_is_a_hard_error():
         odds_source.fetch([make_game()])
 
 
+def test_arizona_resolves_from_the_roster_feeds_own_spelling():
+    """nflverse is not internally consistent about Arizona.
+
+    The roster file codes it "AZ"; schedules, play-by-play, snap counts, and
+    player stats all say "ARI". The stat modules key players on the roster
+    code, so without this alias Arizona publishes empty tables -- which is
+    exactly what it did until the alias was added.
+    """
+    from pipeline.sources.team_map import to_abbr
+
+    assert to_abbr("AZ") == "ARI"
+    assert to_abbr("ARI") == "ARI"
+
+
 @respx.mock
 def test_game_absent_from_the_response_keeps_a_line():
     """A game the book has not posted still renders, via the fallback."""

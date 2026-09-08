@@ -340,3 +340,87 @@
 		font-size: 0.875rem;
 	}
 }
+
+/* -------------------------------------------------------------------------
+ * Phase 2 stat modules. Structural only -- enough that the tables are
+ * readable and do not push the page sideways on a phone. The visual pass
+ * against the mockup is Phase 4.
+ * ---------------------------------------------------------------------- */
+
+/*
+ * The sample badge. Week 1 shows last season's numbers and weeks 2-4 show a
+ * thin sample; the badge is how a reader knows which. It sits inline with the
+ * module heading, so it must not inherit the heading's letter-spacing.
+ */
+.trun-badge {
+	display: inline-block;
+	margin-inline-start: 0.5rem;
+	padding: 0.0625rem 0.375rem;
+	border: 1px solid var(--trun-border);
+	border-radius: 0.75rem;
+	font-size: 0.6875rem;
+	letter-spacing: 0;
+	text-transform: none;
+	font-weight: 500;
+	color: var(--trun-muted);
+	vertical-align: middle;
+}
+
+/*
+ * Seven columns do not fit a phone. The table scrolls inside its own box
+ * rather than widening the page, which is the one thing that would break
+ * every other module on the screen.
+ */
+.trun-scroll {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.trun-scroll + .trun-scroll {
+	margin-block-start: 1rem;
+}
+
+.trun-table__caption {
+	caption-side: top;
+	text-align: left;
+	font-weight: 600;
+	font-size: 0.8125rem;
+	padding-block-end: 0.375rem;
+}
+
+/* Numbers right-align so magnitudes line up; the name column stays left. */
+.trun-table--efficiency td,
+.trun-table--passing td,
+.trun-table--rushing td {
+	text-align: right;
+}
+
+.trun-table--passing td:first-of-type {
+	text-align: left;
+	color: var(--trun-muted);
+	font-size: 0.8125rem;
+}
+
+.trun-table--efficiency thead th,
+.trun-table--passing thead th,
+.trun-table--rushing thead th {
+	text-align: right;
+}
+
+.trun-table--efficiency thead th:first-child,
+.trun-table--passing thead th:first-child,
+.trun-table--passing thead th:nth-child(2),
+.trun-table--rushing thead th:first-child {
+	text-align: left;
+}
+
+/*
+ * The TGT RATE tooltip is the only thing standing between a proxy and a reader
+ * who assumes it is TPRR, so the heading has to look like it explains itself
+ * rather than like an underline artifact.
+ */
+.trun-table thead th abbr {
+	text-decoration: underline dotted;
+	text-underline-offset: 0.2em;
+	cursor: help;
+}

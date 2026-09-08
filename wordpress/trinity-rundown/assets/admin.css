@@ -174,3 +174,36 @@
 	background: #f0f0f1;
 	border-block-start: 1px solid #c3c4c7;
 }
+
+/*
+ * The pipeline's stat tables, read-only, on the writer's screen. Collapsed by
+ * default: three tables across sixteen games is a lot of page to scroll past
+ * to reach a textarea, and the prose is what this screen is for.
+ */
+.trun-adm__stats {
+	margin-block: 0.75rem;
+}
+
+.trun-adm__stats > summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+/* Nothing in here is editable, so it should not read as a form. */
+.trun-adm__stats .trun-module {
+	margin-block: 1rem;
+	opacity: 0.9;
+}
+
+.trun-adm__stats .trun-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-variant-numeric: tabular-nums;
+}
+
+.trun-adm__stats .trun-table th,
+.trun-adm__stats .trun-table td {
+	padding: 0.25rem 0.5rem;
+	text-align: left;
+	border-bottom: 1px solid #dcdcde;
+}

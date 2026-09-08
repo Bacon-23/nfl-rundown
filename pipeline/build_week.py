@@ -3,9 +3,9 @@
     python -m pipeline.build_week --season 2026 --week 1 --dry-run
     python -m pipeline.build_week --season 2026 --week 1 --push
 
-Phase 0/1 builds the header, odds bar, and venue. The stat modules attach in
-Phase 2 through `_attach_modules`, which is the only function that needs to
-change as they land.
+`_attach_modules` hangs everything that is not the header off each game --
+weather, season records, the three stat tables, and injuries. Every module
+fails on its own: a dead feed costs one section, never the page.
 """
 
 from __future__ import annotations
@@ -18,11 +18,24 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from pipeline import config
+from pipeline.metrics import efficiency as efficiency_metric
+from pipeline.metrics import passing as passing_metric
 from pipeline.metrics import records as records_metric
+from pipeline.metrics import rushing as rushing_metric
+from pipeline.metrics import sample
 from pipeline.metrics.records import TeamRecords
-from pipeline.schema import Game, Kickoff, Team, WeekPayload
+from pipeline.schema import (
+    EfficiencyModule,
+    Game,
+    Kickoff,
+    PassingModule,
+    RushingModule,
+    Team,
+    WeekPayload,
+)
 from pipeline.sources import injuries as injuries_source
 from pipeline.sources import odds as odds_source
+from pipeline.sources import pbp as pbp_source
 from pipeline.sources import schedule as schedule_source
 from pipeline.sources import weather as weather_source
 from pipeline.sources.odds_tape import StaleFixtureError
@@ -124,6 +137,12 @@ def _attach_modules(
     except Exception as exc:  # noqa: BLE001 - one module must not sink the page
         warnings.append(f"Season records unavailable ({records_season}): {exc}")
 
+    # --- Team efficiency, receivers, and backs ------------------------------
+    # Computed league-wide once per build and then sliced per game: EPA rank is
+    # a statement about all 32 teams, and the three player feeds are the same
+    # files whichever matchup is being assembled.
+    warnings.extend(_attach_stats(built, season, week))
+
     # --- Injuries ----------------------------------------------------------
     teams = {g.away for g in scheduled} | {g.home for g in scheduled}
 
@@ -146,6 +165,123 @@ def _attach_modules(
         )
 
     return warnings
+
+
+def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
+    """Hang efficiency, passing, and rushing off every game in the week.
+
+    The three modules fail independently. A dead snap-count feed should cost
+    the running-back table and nothing else, so each is caught on its own and
+    reported as a warning rather than allowed to sink the build.
+
+    In week 1 `stats_season` points at the prior season, and every module is
+    badged accordingly by `sample.describe`.
+    """
+    warnings: list[str] = []
+    source_season = config.stats_season(season, week)
+
+    efficiency: dict = {}
+    games: dict[str, int] = {}
+    try:
+        frame = pbp_source.load(source_season)
+        efficiency = efficiency_metric.team_efficiency(frame)
+        games = efficiency_metric.games_played(frame)
+    except Exception as exc:  # noqa: BLE001 - one module must not sink the page
+        warnings.append(f"Team efficiency unavailable ({source_season}): {exc}")
+
+    receivers: dict = {}
+    try:
+        receivers = passing_metric.build(source_season, season)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Passing table unavailable ({source_season}): {exc}")
+
+    backs: dict = {}
+    try:
+        backs = rushing_metric.build(source_season, season)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Rushing table unavailable ({source_season}): {exc}")
+
+    for game in built:
+        sides = (game.away.abbr, game.home.abbr)
+        sampled = _games_sampled(games, sides)
+        basis, badge = sample.describe(season, week, sampled)
+
+        rows = [efficiency[team] for team in sides if team in efficiency]
+        if rows:
+            game.efficiency = EfficiencyModule(
+                basis=basis, badge=badge, games_sampled=sampled, rows=rows
+            )
+
+        if any(team in receivers for team in sides):
+            game.passing = PassingModule(
+                basis=basis,
+                badge=badge,
+                games_sampled=sampled,
+                away=receivers.get(game.away.abbr, []),
+                home=receivers.get(game.home.abbr, []),
+            )
+
+        if any(team in backs for team in sides):
+            game.rushing = RushingModule(
+                basis=basis,
+                badge=badge,
+                games_sampled=sampled,
+                away=backs.get(game.away.abbr, []),
+                home=backs.get(game.home.abbr, []),
+            )
+
+    warnings.extend(_missing_team_warnings(built, efficiency, receivers, backs))
+
+    return warnings
+
+
+def _missing_team_warnings(
+    built: list[Game],
+    efficiency: dict,
+    receivers: dict,
+    backs: dict,
+) -> list[str]:
+    """Name any team that ended up with an empty table while others filled.
+
+    An empty table for one team is never a legitimate outcome -- every NFL team
+    has receivers -- so it means a join failed upstream. That is how Arizona
+    was caught publishing nothing: the roster feed codes it "AZ" while every
+    other feed says "ARI", and without this the page would simply have shown
+    two blank tables and said nothing about why.
+
+    Reported per feed, and only when the feed produced something for somebody:
+    a module that failed outright is already reported by its own handler, and
+    repeating it 32 times would bury the message that matters.
+    """
+    warnings: list[str] = []
+    teams = sorted({game.away.abbr for game in built} | {game.home.abbr for game in built})
+
+    for label, table in (
+        ("team efficiency", efficiency),
+        ("receivers", receivers),
+        ("backs", backs),
+    ):
+        if not table:
+            continue
+        missing = [team for team in teams if not table.get(team)]
+        if missing:
+            warnings.append(
+                f"No {label} for {', '.join(missing)} -- expected every team to "
+                f"have some. Check the abbreviations in that feed."
+            )
+
+    return warnings
+
+
+def _games_sampled(games: dict[str, int], sides: tuple[str, str]) -> int | None:
+    """The smaller of the two teams' game counts, or None if neither is known.
+
+    The badge is a claim about the sample behind the table, and the table holds
+    both teams. After a bye the two sides differ by a game; quoting the larger
+    number would overstate what the thinner half of the table rests on.
+    """
+    counts = [games[team] for team in sides if team in games]
+    return min(counts) if counts else None
 
 
 def _attach_records(built: list[Game], records: dict[str, TeamRecords]) -> None:
