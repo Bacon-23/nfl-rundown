@@ -462,6 +462,43 @@ checked at 900px and 375px, in print, and with JavaScript disabled, and against
 a payload stripped of the new fields -- a week frozen into `published_json`
 before this change renders dashes and the neutral accent rather than erroring.
 
+**Deployed to staging the same day, and it found two bugs the local harness
+could not.** The theme is dark, and dark *unconditionally* -- not by OS
+preference -- and everything above had been checked against a white shell.
+
+- The odds bar and records strip set `background: Canvas` on each cell, using
+  the grid's background through a 1px gap as the separator. `Canvas` is the
+  user agent's canvas colour, white whatever the theme, so the theme's
+  near-white text sat on white boxes at a measured **1.21:1**: the spread, the
+  total, both team totals and all four records were invisible on the live page.
+  Separators are borders on the cells' start edges now, so a cell paints no
+  background and keeps the theme's. 17.31:1 after.
+- The status colours had lighter variants behind `prefers-color-scheme: dark`,
+  which never fired, because the OS is not what makes this page dark. Out and
+  Injured Reserve measured 3.21:1 and Questionable 3.05:1, both under AA. Each
+  hue is now mixed 65% toward `currentColor` -- the idiom `--trun-border`,
+  `--trun-muted` and `--trun-sunk` already used -- which puts them at 5.68,
+  7.06 and 6.16 here and above 9 on a light page. The `prefers-color-scheme`
+  block is gone rather than retuned: keying page colour to the OS was the bug.
+
+`tools/preview.php` gained `--dark` in the same change, since checking only the
+light shell is exactly how both of those reached the live site.
+
+What the deployed page proves, measured rather than eyeballed: **zero colour
+collisions across all 16 panels**, records and moneylines rendering from real
+data, 1,148 `data-label`s and 352 tooltips, 16/16 panels expanded in print with
+the tab strip and logos suppressed, and no horizontal overflow at 375px. The
+one colour decision that needed no correction was `trun_ink_for()` -- the
+team-coloured captions measured 6.01:1 on the live page. Computed beat assumed.
+
+Two things about WordPress.com worth knowing next time. Its **page cache does
+not purge on a plugin deploy**, so the first look at a deployed change can
+silently be the old page -- check with a cache-busting query before believing
+anything, and note that the CDN caches the plugin's CSS URL the same way. And
+it rewrites asset URLs to `?m=<deployed mtime>`, so the stylesheet busts on
+deploy by itself; `TRUN_VERSION` is still bumped on every release, because that
+is the handle this repo controls and production may not behave the same way.
+
 Still to do: the rehearsal itself, then the production cutover (Phase 5). One
 dated hazard sits in that window -- the odds fixture is per-week, so the hourly
 staging build fails the moment Week 2 opens without a re-recorded fixture. The
