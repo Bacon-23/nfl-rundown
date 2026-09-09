@@ -264,6 +264,8 @@ $head = '<!doctype html>' . "\n"
 	. ' styles, so judge layout and markup here and colour on staging.</p>' . "\n";
 
 $foot = "\n" . '</div>' . "\n"
+	// The real script, so the expand-all control can be clicked here too.
+	. '<script src="' . $assets . '/rundown.js"></script>' . "\n"
 	. '</body>' . "\n"
 	. '</html>' . "\n";
 

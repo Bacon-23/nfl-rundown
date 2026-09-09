@@ -3,8 +3,10 @@
  * Front-end rendering.
  *
  * Everything is emitted server-side so the writeups are in the HTML for
- * search engines and for readers without JavaScript. There is no JavaScript:
- * the page is a list of <details> panels and the browser does the collapsing.
+ * search engines and for readers without JavaScript: the page is a list of
+ * <details> panels and the browser does the collapsing. The only script is
+ * rundown.js, and it only drives the expand-all control, which renders hidden
+ * until the script unhides it -- so without JavaScript the page is unchanged.
  *
  * The header and odds bar come first, then the stat tables off
  * trun_render_modules(), then the editorial sections. Every stat value is a
@@ -39,12 +41,44 @@ function trun_render_rows( array $rows, int $season, int $week ): string {
 	ob_start();
 	?>
 	<div class="trun-week" data-season="<?php echo esc_attr( (string) $season ); ?>" data-week="<?php echo esc_attr( (string) $week ); ?>">
+		<?php echo trun_render_toolbar( $games ); ?>
 		<div class="trun-games">
 			<?php foreach ( $games as $game ) : ?>
 				<?php echo trun_render_game( $game ); ?>
 			<?php endforeach; ?>
 		</div>
 		<?php echo trun_render_footer( $games ); ?>
+	</div>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * The one control above the week: open every panel, or close every panel.
+ *
+ * Opening sixteen games one at a time is the whole week's reading, and closing
+ * them again to find one is worse. This is the only thing on the page that
+ * needs script, so it is the only thing that degrades: it renders `hidden` and
+ * rundown.js unhides it. A reader without JavaScript sees the panels exactly
+ * as before rather than a button that does nothing.
+ *
+ * Both labels ship as data attributes rather than being written in the script,
+ * so the string stays translatable in PHP and the script stays string-free.
+ */
+function trun_render_toolbar( array $games ): string {
+	// One game is not a set to expand. Nothing to control, so no control.
+	if ( count( $games ) < 2 ) {
+		return '';
+	}
+
+	ob_start();
+	?>
+	<div class="trun-toolbar" hidden>
+		<button type="button" class="trun-toolbar__all" data-trun-toggle-all
+			data-label-expand="<?php echo esc_attr( __( 'Expand all', 'trinity-rundown' ) ); ?>"
+			data-label-collapse="<?php echo esc_attr( __( 'Collapse all', 'trinity-rundown' ) ); ?>">
+			<?php echo esc_html( __( 'Expand all', 'trinity-rundown' ) ); ?>
+		</button>
 	</div>
 	<?php
 	return (string) ob_get_clean();

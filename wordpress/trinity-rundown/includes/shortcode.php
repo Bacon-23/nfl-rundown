@@ -28,6 +28,7 @@ function trun_shortcode_week( $atts ): string {
 
 	// Only enqueue on pages that actually contain a rundown.
 	wp_enqueue_style( 'trinity-rundown' );
+	wp_enqueue_script( 'trinity-rundown' );
 
 	return trun_render_week( $season, $week );
 }
@@ -40,5 +41,18 @@ function trun_register_assets(): void {
 		TRUN_URL . 'assets/rundown.css',
 		[],
 		TRUN_VERSION
+	);
+
+	/*
+	 * Deferred, and it wires the expand-all control on nothing but the markup
+	 * already in the document -- so it can run late without the button ever
+	 * appearing before it works. See assets/rundown.js.
+	 */
+	wp_register_script(
+		'trinity-rundown',
+		TRUN_URL . 'assets/rundown.js',
+		[],
+		TRUN_VERSION,
+		[ 'strategy' => 'defer' ]
 	);
 }
