@@ -29,6 +29,69 @@
 
 	container-type: inline-size;
 	font-variant-numeric: tabular-nums;
+
+	/*
+	 * The shortcode is usually the first thing in the post, which puts the
+	 * first panel directly under the site header with nothing between them --
+	 * the page reads as one block and the header stops looking like a header.
+	 * Themes vary in what they give a first child, so the gap is claimed here
+	 * rather than assumed. Margin, not padding, so it collapses with any space
+	 * a theme *has* already left instead of stacking on top of it.
+	 */
+	margin-block-start: 2rem;
+}
+
+/* ---------- The week's one control ---------- */
+
+/*
+ * Right-aligned and above the panels: a control over a list belongs at the
+ * list's top, and the end of the row is where it stays out of the way of the
+ * first matchup, which is what the reader came for.
+ *
+ * `hidden` until rundown.js unhides it -- see trun_render_toolbar(). The
+ * attribute needs no rule of its own; nothing here overrides it.
+ */
+.trun-toolbar {
+	display: flex;
+	justify-content: flex-end;
+	margin-block-end: 0.75rem;
+}
+
+/*
+ * Every property a theme's button styles might otherwise supply is set, since
+ * this sits in post content where a theme is free to style <button>. Colour is
+ * the exception: it inherits, so the control is legible on a light theme and a
+ * dark one without either being detected.
+ */
+.trun-toolbar__all {
+	font: inherit;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	line-height: 1.2;
+	color: inherit;
+	background: none;
+	border: 1px solid var(--trun-rule);
+	border-radius: 999px;
+	padding: 0.4rem 0.9rem;
+	cursor: pointer;
+	/* The label swaps between two words of different width; don't jump. */
+	min-width: 7.5em;
+	transition: background-color 150ms ease;
+}
+
+.trun-toolbar__all:hover {
+	background: var(--trun-sunk);
+}
+
+.trun-toolbar__all:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.trun-toolbar__all {
+		transition: none;
+	}
 }
 
 /* ---------- Game panels ---------- */
