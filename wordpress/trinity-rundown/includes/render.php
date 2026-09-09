@@ -3,8 +3,8 @@
  * Front-end rendering.
  *
  * Everything is emitted server-side so the writeups are in the HTML for
- * search engines and for readers without JavaScript. rundown.js only upgrades
- * the accordion into tabs on wide screens.
+ * search engines and for readers without JavaScript. There is no JavaScript:
+ * the page is a list of <details> panels and the browser does the collapsing.
  *
  * The header and odds bar come first, then the stat tables off
  * trun_render_modules(), then the editorial sections. Every stat value is a
@@ -14,7 +14,7 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Render a whole week: glance table plus one accordion panel per game.
+ * Render a whole week: one collapsible panel per game.
  */
 function trun_render_week( int $season, int $week ): string {
 	return trun_render_rows( TRUN_Storage::get_week( $season, $week ), $season, $week );
@@ -39,10 +39,9 @@ function trun_render_rows( array $rows, int $season, int $week ): string {
 	ob_start();
 	?>
 	<div class="trun-week" data-season="<?php echo esc_attr( (string) $season ); ?>" data-week="<?php echo esc_attr( (string) $week ); ?>">
-		<?php echo trun_render_glance( $games ); ?>
 		<div class="trun-games">
-			<?php foreach ( $games as $i => $game ) : ?>
-				<?php echo trun_render_game( $game, 0 === $i ); ?>
+			<?php foreach ( $games as $game ) : ?>
+				<?php echo trun_render_game( $game ); ?>
 			<?php endforeach; ?>
 		</div>
 		<?php echo trun_render_footer( $games ); ?>
@@ -52,49 +51,16 @@ function trun_render_rows( array $rows, int $season, int $week ): string {
 }
 
 /**
- * Week-at-a-glance table, so the page says something before anything is opened.
+ * One matchup. A <details> element, so the browser does the collapsing and
+ * every panel renders closed -- a week is sixteen headers until one is opened.
  */
-function trun_render_glance( array $games ): string {
-	ob_start();
-	?>
-	<table class="trun-glance">
-		<caption class="screen-reader-text"><?php esc_html_e( 'All matchups this week', 'trinity-rundown' ); ?></caption>
-		<thead>
-			<tr>
-				<th scope="col"><?php esc_html_e( 'Matchup', 'trinity-rundown' ); ?></th>
-				<th scope="col"><?php esc_html_e( 'Kickoff', 'trinity-rundown' ); ?></th>
-				<th scope="col"><?php esc_html_e( 'Spread', 'trinity-rundown' ); ?></th>
-				<th scope="col"><?php esc_html_e( 'Total', 'trinity-rundown' ); ?></th>
-			</tr>
-		</thead>
-		<tbody>
-		<?php foreach ( $games as $game ) : ?>
-			<tr>
-				<th scope="row">
-					<a href="#<?php echo esc_attr( trun_anchor( $game ) ); ?>"><?php echo esc_html( trun_matchup_label( $game ) ); ?></a>
-				</th>
-				<td><?php echo esc_html( trun_get( $game, 'kickoff.display', 'TBD' ) ); ?></td>
-				<td><?php echo esc_html( trun_spread_text( $game ) ); ?></td>
-				<td><?php echo esc_html( trun_get( $game, 'odds.total', '--' ) ); ?></td>
-			</tr>
-		<?php endforeach; ?>
-		</tbody>
-	</table>
-	<?php
-	return (string) ob_get_clean();
-}
-
-/**
- * One matchup. A <details> element, so collapsing works with JS disabled.
- */
-function trun_render_game( array $game, bool $open = false ): string {
+function trun_render_game( array $game ): string {
 	$away = trun_get( $game, 'away.abbr', '' );
 	$home = trun_get( $game, 'home.abbr', '' );
 
 	ob_start();
 	?>
 	<details class="trun-game" id="<?php echo esc_attr( trun_anchor( $game ) ); ?>"
-		<?php echo $open ? ' open' : ''; ?>
 		style="<?php echo esc_attr( trun_team_color_vars( $game ) ); ?>">
 		<summary class="trun-game__summary">
 			<span class="trun-game__teams"><?php echo esc_html( trun_matchup_label( $game ) ); ?></span>

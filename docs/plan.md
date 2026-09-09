@@ -20,7 +20,7 @@ Outcome: a Python pipeline on GitHub Actions computes every number from public d
 | Staging odds | **Record once, replay** — one live capture committed as a fixture; staging replays it |
 | Scheduled runs | **Staging only** for now; production is a one-variable switch at launch |
 | Pipeline | **GitHub Actions**, Python, pushes JSON to WP over REST |
-| Article shape | **One weekly post**, games as accordion/tabs |
+| Article shape | **One weekly post**, games as a collapsible accordion |
 | Editing | **Admin dashboard**, all games on one screen |
 | Odds | **The Odds API**, 100K tier — one named book, consensus never shown |
 | Team totals | Real `team_totals` market (derived arithmetic as fallback) |
@@ -93,7 +93,7 @@ nfl-rundown/
     ├── trinity-rundown.php
     ├── includes/  rest-ingest.php  storage.php  admin-week.php
     │               render.php      shortcode.php  cli.php
-    └── assets/    rundown.css  rundown.js
+    └── assets/    rundown.css
 ```
 
 ### Data flow
@@ -288,11 +288,11 @@ WordPress.com accounts sign in via WP.com SSO, where the Application Passwords U
 
 ## Rendering
 
-- **Server-side PHP** emits full HTML for all 16 games, so Google indexes the writeups. JavaScript only enhances.
-- Each matchup is a `<details>` element; `rundown.js` (~2 KB, no jQuery) upgrades them to tabs on desktop. Without JS the page still works.
+- **Server-side PHP** emits full HTML for all 16 games, so Google indexes the writeups. The plugin ships no JavaScript.
+- Each matchup is a `<details>` element that the reader clicks to expand or collapse, on every screen size. All sixteen ship closed, and any number can be open at once. There is no JavaScript at all -- the browser does the collapsing.
 - Scoped `.trundown-*` class prefix; per-game team colors injected as CSS custom properties from `teamcolors.csv`.
 - Below 640 px the stat tables reflow into stacked cards. Print stylesheet included.
-- A "Week at a glance" summary table sits above the accordion so the page has value before anything is expanded.
+- Each panel's `<summary>` carries the matchup, the spread and the kickoff time, so a closed week still reads as a schedule.
 - The odds bar carries a visible book attribution and a "stats as of" timestamp.
 - Accessibility: real `<table>` markup with `<th scope>`, sufficient contrast on team-colored headers, no color-only encoding of trend labels.
 

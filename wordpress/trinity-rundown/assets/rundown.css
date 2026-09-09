@@ -31,38 +31,6 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Week at a glance ---------- */
-
-.trun-glance {
-	width: 100%;
-	border-collapse: collapse;
-	margin-block-end: 2rem;
-	font-size: 0.9375rem;
-}
-
-.trun-glance th,
-.trun-glance td {
-	padding: 0.5rem 0.75rem;
-	text-align: left;
-	border-block-end: 1px solid var(--trun-border);
-}
-
-.trun-glance thead th {
-	font-size: 0.75rem;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: var(--trun-muted);
-	border-block-end-color: var(--trun-rule);
-}
-
-.trun-glance tbody th {
-	font-weight: 600;
-}
-
-.trun-glance tbody tr:hover {
-	background: var(--trun-sunk);
-}
-
 /* ---------- Game panels ---------- */
 
 .trun-game {
@@ -489,78 +457,9 @@
 	color: var(--trun-muted);
 }
 
-/* ---------- Tabs (JS enhancement, wide screens only) ---------- */
-
-/*
- * Sixteen matchups do not wrap into a tidy block. The strip scrolls sideways
- * on one line, which reads as a deliberate control rather than as a paragraph
- * of buttons.
- */
-.trun-week[data-tabs="on"] .trun-tablist {
-	display: flex;
-	gap: 0.25rem;
-	margin-block-end: 1rem;
-	border-block-end: 1px solid var(--trun-rule);
-	overflow-x: auto;
-	scrollbar-width: thin;
-	-webkit-overflow-scrolling: touch;
-}
-
-.trun-week[data-tabs="on"] .trun-tab {
-	padding: 0.5rem 0.875rem;
-	border: 0;
-	background: none;
-	cursor: pointer;
-	font: inherit;
-	font-size: 0.875rem;
-	white-space: nowrap;
-	color: var(--trun-muted);
-	border-block-end: 2px solid transparent;
-}
-
-.trun-week[data-tabs="on"] .trun-tab:hover {
-	color: inherit;
-}
-
-.trun-week[data-tabs="on"] .trun-tab[aria-selected="true"] {
-	border-block-end-color: currentColor;
-	font-weight: 600;
-	color: inherit;
-}
-
-.trun-week[data-tabs="on"] .trun-game > .trun-game__summary {
-	display: none;
-}
-
-.trun-week[data-tabs="on"] .trun-game[hidden] {
-	display: none;
-}
-
 /* ---------- Narrow containers: tables become stacked cards ---------- */
 
 @container (max-width: 640px) {
-	.trun-glance thead {
-		display: none;
-	}
-
-	.trun-glance tr {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 0.125rem 0.75rem;
-		padding-block: 0.625rem;
-		border-block-end: 1px solid var(--trun-border);
-	}
-
-	.trun-glance th,
-	.trun-glance td {
-		border: 0;
-		padding: 0;
-	}
-
-	.trun-glance tbody th {
-		grid-column: 1 / -1;
-	}
-
 	/*
 	 * The injury table reflows into one card per player.
 	 *
@@ -723,22 +622,12 @@
 		list-style: none;
 	}
 
-	/* Expand everything — a printed page cannot be clicked open. */
+	/*
+	 * Expand everything — a printed page cannot be clicked open, and every
+	 * panel ships closed, so without this a printed week is sixteen headers.
+	 */
 	.trun-game:not([open]) .trun-game__body {
 		display: block;
-	}
-
-	.trun-week[data-tabs="on"] .trun-game[hidden] {
-		display: block;
-	}
-
-	.trun-week[data-tabs="on"] .trun-game > .trun-game__summary {
-		display: flex;
-	}
-
-	/* The tab strip is a control; on paper it is a row of dead words. */
-	.trun-week[data-tabs="on"] .trun-tablist {
-		display: none;
 	}
 
 	/* Logos cost ink and say nothing the name beside them does not. */

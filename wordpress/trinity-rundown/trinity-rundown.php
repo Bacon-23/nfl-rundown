@@ -3,7 +3,7 @@
  * Plugin Name:       Trinity Rundown
  * Plugin URI:        https://github.com/Bacon-23/nfl-rundown
  * Description:       Weekly NFL matchup dashboards. Stats arrive from the pipeline over REST; editorial commentary is written in wp-admin. The two never overwrite each other.
- * Version:           0.3.1
+ * Version:           0.4.0
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Trinity Analytics
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TRUN_VERSION', '0.3.1' );
+define( 'TRUN_VERSION', '0.4.0' );
 define( 'TRUN_FILE', __FILE__ );
 define( 'TRUN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TRUN_URL', plugin_dir_url( __FILE__ ) );

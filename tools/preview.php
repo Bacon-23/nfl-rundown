@@ -264,7 +264,6 @@ $head = '<!doctype html>' . "\n"
 	. ' styles, so judge layout and markup here and colour on staging.</p>' . "\n";
 
 $foot = "\n" . '</div>' . "\n"
-	. '<script src="' . $assets . '/rundown.js"></script>' . "\n"
 	. '</body>' . "\n"
 	. '</html>' . "\n";
 
