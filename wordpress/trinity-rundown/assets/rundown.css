@@ -31,38 +31,6 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Week at a glance ---------- */
-
-.trun-glance {
-	width: 100%;
-	border-collapse: collapse;
-	margin-block-end: 2rem;
-	font-size: 0.9375rem;
-}
-
-.trun-glance th,
-.trun-glance td {
-	padding: 0.5rem 0.75rem;
-	text-align: left;
-	border-block-end: 1px solid var(--trun-border);
-}
-
-.trun-glance thead th {
-	font-size: 0.75rem;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: var(--trun-muted);
-	border-block-end-color: var(--trun-rule);
-}
-
-.trun-glance tbody th {
-	font-weight: 600;
-}
-
-.trun-glance tbody tr:hover {
-	background: var(--trun-sunk);
-}
-
 /* ---------- Game panels ---------- */
 
 .trun-game {
@@ -82,6 +50,59 @@
 	font-weight: 600;
 	/* A 4px rule in the home team's color, so panels are scannable by team. */
 	border-inline-start: 4px solid var(--trun-home);
+	/* Room at the end for the chevron, which is positioned rather than flowed. */
+	padding-inline-end: 2.25rem;
+	position: relative;
+	/*
+	 * `display: flex` already drops the UA disclosure triangle -- summary stops
+	 * being a list-item -- so the chevron below is the only affordance and this
+	 * says so on purpose rather than by side effect.
+	 */
+	list-style: none;
+}
+
+.trun-game__summary::-webkit-details-marker {
+	display: none;
+}
+
+/*
+ * The chevron. A week is sixteen closed rows, and without this nothing on the
+ * page says they open: the cursor is the whole hint, and a reader who never
+ * hovers never finds out. Drawn from two borders rather than set as text so it
+ * inherits the theme's colour and needs no font or icon file.
+ *
+ * Positioned rather than left as a flex item. As an item it wrapped: a long
+ * matchup on a phone pushed the spread and kickoff to their own line and the
+ * chevron to a third, alone. Pinned to the end and centred on the whole
+ * summary with `inset-block: 0` plus auto margins, it sits where the row's
+ * only control should sit at any width, and the centring needs no assumption
+ * about the theme's line-height.
+ */
+.trun-game__summary::after {
+	content: "";
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 1rem;
+	margin-block: auto;
+	width: 0.45em;
+	height: 0.45em;
+	color: var(--trun-muted);
+	border-inline-end: 2px solid currentColor;
+	border-block-end: 2px solid currentColor;
+	/* Pointing down: this panel is closed. */
+	transform: rotate(45deg);
+	transition: transform 150ms ease;
+}
+
+.trun-game[open] > .trun-game__summary::after {
+	/* Pointing up: this panel is open. */
+	transform: rotate(-135deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.trun-game__summary::after {
+		transition: none;
+	}
 }
 
 .trun-game__summary:hover {
@@ -489,78 +510,9 @@
 	color: var(--trun-muted);
 }
 
-/* ---------- Tabs (JS enhancement, wide screens only) ---------- */
-
-/*
- * Sixteen matchups do not wrap into a tidy block. The strip scrolls sideways
- * on one line, which reads as a deliberate control rather than as a paragraph
- * of buttons.
- */
-.trun-week[data-tabs="on"] .trun-tablist {
-	display: flex;
-	gap: 0.25rem;
-	margin-block-end: 1rem;
-	border-block-end: 1px solid var(--trun-rule);
-	overflow-x: auto;
-	scrollbar-width: thin;
-	-webkit-overflow-scrolling: touch;
-}
-
-.trun-week[data-tabs="on"] .trun-tab {
-	padding: 0.5rem 0.875rem;
-	border: 0;
-	background: none;
-	cursor: pointer;
-	font: inherit;
-	font-size: 0.875rem;
-	white-space: nowrap;
-	color: var(--trun-muted);
-	border-block-end: 2px solid transparent;
-}
-
-.trun-week[data-tabs="on"] .trun-tab:hover {
-	color: inherit;
-}
-
-.trun-week[data-tabs="on"] .trun-tab[aria-selected="true"] {
-	border-block-end-color: currentColor;
-	font-weight: 600;
-	color: inherit;
-}
-
-.trun-week[data-tabs="on"] .trun-game > .trun-game__summary {
-	display: none;
-}
-
-.trun-week[data-tabs="on"] .trun-game[hidden] {
-	display: none;
-}
-
 /* ---------- Narrow containers: tables become stacked cards ---------- */
 
 @container (max-width: 640px) {
-	.trun-glance thead {
-		display: none;
-	}
-
-	.trun-glance tr {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 0.125rem 0.75rem;
-		padding-block: 0.625rem;
-		border-block-end: 1px solid var(--trun-border);
-	}
-
-	.trun-glance th,
-	.trun-glance td {
-		border: 0;
-		padding: 0;
-	}
-
-	.trun-glance tbody th {
-		grid-column: 1 / -1;
-	}
-
 	/*
 	 * The injury table reflows into one card per player.
 	 *
@@ -723,21 +675,17 @@
 		list-style: none;
 	}
 
-	/* Expand everything — a printed page cannot be clicked open. */
+	/*
+	 * Expand everything — a printed page cannot be clicked open, and every
+	 * panel ships closed, so without this a printed week is sixteen headers.
+	 */
 	.trun-game:not([open]) .trun-game__body {
 		display: block;
 	}
 
-	.trun-week[data-tabs="on"] .trun-game[hidden] {
-		display: block;
-	}
-
-	.trun-week[data-tabs="on"] .trun-game > .trun-game__summary {
-		display: flex;
-	}
-
-	/* The tab strip is a control; on paper it is a row of dead words. */
-	.trun-week[data-tabs="on"] .trun-tablist {
+	/* Every panel prints expanded, so the chevron is a control pointing at
+	   nothing. Same reason the tab strip never printed. */
+	.trun-game__summary::after {
 		display: none;
 	}
 
