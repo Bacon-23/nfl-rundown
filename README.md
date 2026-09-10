@@ -85,28 +85,51 @@ credential has already crossed the wire.
 | | Staging | Production |
 |---|---|---|
 | Plugin deploy | GitHub Deployments, automatic on push to `main` | GitHub Deployments, manual |
-| Scheduled builds | yes — the cron target | none until launch |
-| Odds | replayed from a committed fixture | live Odds API |
+| Scheduled builds | on-demand dispatch only after launch | the cron target |
+| Odds | free nflverse lines, or a fixture on request | live Odds API |
 | Secrets | GitHub Environment `staging` | GitHub Environment `production` |
 
-The hourly schedule is held behind a repo variable: the `build` job runs on a
-`schedule` trigger only when **`CRON_ENABLED`** is `true` (Settings → Secrets
-and variables → Actions → Variables). It starts unset, because the schedule
-would otherwise begin firing the moment the workflow reached `main` — before
-the odds fixture existed or staging had a token. Manual `workflow_dispatch`
-runs ignore the variable, so setup can be tested throughout. Turn it on once
-`python -m pipeline.push --health` returns `ok: True` from CI and the fixture
-is committed.
+Two repo variables steer the cron, one job each (Settings → Secrets and
+variables → Actions → Variables):
+
+| Variable | Live value | What it does |
+|---|---|---|
+| `CRON_ENABLED` | `true` | The master off-switch. Unset it and every scheduled build stops. Manual `workflow_dispatch` ignores it, so setup stays testable. |
+| `SCHEDULED_TARGET` | *unset until cutover step 12; then* `production` | Which site the cron writes to. Unset, it falls back to `staging`. |
+
+**The workflow file alone no longer answers "where do scheduled builds go?"**
+That was accepted deliberately: a push to `main` also redeploys the plugin to
+staging, so keeping the target in the file would make "stop the cron" and
+"ship code" share a trigger — and the rollback during a live week has to be a
+dropdown, not a commit. The price is this table, and the `Target: <env> |
+odds: <mode>` line every build echoes, so a run's log says what it did even
+when the file cannot.
+
+`SCHEDULED_TARGET` is read in four places — `concurrency.group`, the job's
+`environment:`, `TARGET`, and the payload artifact's name. They must stay
+byte-identical: a `concurrency` group that disagrees with `environment` lets a
+manual run and the cron interleave writes into one week's rows, which corrupts
+data rather than erroring. `pipeline/tests/test_workflow_targets.py` pins all
+four.
 
 `WP_SITE_URL` and `TRINITY_RUNDOWN_TOKEN` live in **GitHub Environments**, not
 repo-level secrets, so a job only ever holds the credential for the site it
 declares. `ODDS_API_KEY` is repo-level, since one subscription serves both.
 
-Each environment carries a **deployment branch policy limiting it to `main`**.
-Without one, any workflow run naming the environment can read its secrets from
-any branch — including a branch carrying an edited `build-week.yml`, whose logs
-are public because this repository is. The policy also stops an accidental
-dispatch from a work-in-progress branch writing to a live site.
+Each environment **must** carry a **deployment branch policy limiting it to
+`main`**. Without one, any workflow run naming the environment can read its
+secrets from any branch — including a branch carrying an edited
+`build-week.yml`, whose logs are public because this repository is. The policy
+also stops an accidental dispatch from a work-in-progress branch writing to a
+live site.
+
+**Neither environment carries one yet.** `staging` has had none since it was
+created, and `production` does not exist until the cutover. Both are applied in
+the cutover runbook (step 2 of
+[`docs/superpowers/specs/2026-09-08-production-cutover-design.md`](docs/superpowers/specs/2026-09-08-production-cutover-design.md));
+until then, treat the paragraph above as the requirement rather than the state.
+Leave `can_admins_bypass` at its default — that is what keeps manual dispatch
+working.
 
 > **Do not use WordPress.com's "Push to Production" sync.** Its dialog offers to
 > copy the database, which would overwrite live posts with staging content.
@@ -114,12 +137,18 @@ dispatch from a work-in-progress branch writing to a live site.
 
 ### Recording the odds fixture
 
-Staging replays a captured API response so test runs cost nothing and return
-the same numbers every time:
+Dispatching **Build week** with `odds: replay` replays a captured API response,
+so a test run costs nothing and returns the same numbers every time. It is
+opt-in rather than any environment's default: the fixture path resolves from
+season and week, so a default of `replay` would start failing the hour a new
+week opened. The committed `pipeline/fixtures/odds-live-2026-wk01.json` is a
+historical artifact with no maintenance attached — every replay test builds its
+own fixture in `tmp_path`, so nothing in the suite depends on it.
 
-Record it from CI rather than a workstation, so the API key stays in Actions
-secrets: dispatch **Build week** with `odds: record` and `push: false`, then
-download the `odds-fixture` artifact and commit it to `pipeline/fixtures/`.
+Record a new one only to reproduce a specific week by hand, and do it from CI
+rather than a workstation so the API key stays in Actions secrets: dispatch
+**Build week** with `odds: record` and `push: false`, then download the
+`odds-fixture` artifact and commit it to `pipeline/fixtures/`.
 
 The equivalent locally, if the key is already in your environment:
 

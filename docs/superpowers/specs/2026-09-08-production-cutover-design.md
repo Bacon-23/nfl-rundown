@@ -57,12 +57,18 @@ assuming as headroom.
 Four edits to `.github/workflows/build-week.yml`. No pipeline changes.
 
 1. **Target resolution** becomes `inputs.environment || vars.SCHEDULED_TARGET
-   || 'staging'` in all three places that read `inputs.environment ||
-   'staging'` today: `concurrency.group`, the job's `environment:` key, and
-   `TARGET` in the build step's env. These must move together. If
-   `concurrency` disagrees with `environment`, a manual staging run and the
-   production cron stop being mutually exclusive and can interleave writes
-   into one week's rows.
+   || 'staging'` in all **four** places that read `inputs.environment ||
+   'staging'` today: `concurrency.group`, the job's `environment:` key,
+   `TARGET` in the build step's env, and the payload artifact's name. These
+   must move together. If `concurrency` disagrees with `environment`, a manual
+   staging run and the production cron stop being mutually exclusive and can
+   interleave writes into one week's rows.
+
+   *Corrected 2026-09-10, during implementation: this said "three places" and
+   omitted the artifact name. That fourth one is cosmetic -- a mislabelled
+   download, not a corrupted row -- but a production run uploading
+   `payload-staging` is misleading in exactly the window where steps 10 and 11
+   have someone inspecting payloads by hand, so it moves with the others.*
 
 2. **The odds mode needs no edit.** The build step already reads
    `if [ "$TARGET" = "production" ]; then MODE=live`. Once `TARGET` resolves
@@ -120,11 +126,27 @@ Ordered so every irreversible step follows the thing that proves it safe.
    **automatic off**.
 4. Immediately after: check `main` for a WordPress.com-generated commit and
    diff `.github/workflows/wpcom.yml`. Connecting force-writes that file with
-   its generated default of `path: [., !.git*]`. Restore
-   `path: wordpress/trinity-rundown`, `if-no-files-found: error`, and the
-   artifact name `wpcom`. Verify with `gh run download <id> -n wpcom` that
-   `trinity-rundown.php` sits at the **artifact root**; nested, and both
-   sites' next deploy ships a plugin WordPress cannot detect.
+   its generated default of `path: [., !.git*]`.
+
+   The known-good file as of 2026-09-10 is pinned by hash, so this is a
+   comparison rather than a from-memory reading:
+
+   ```
+   git fetch origin main
+   git cat-file -p origin/main:.github/workflows/wpcom.yml | sha256sum
+   # 2f01bfc7cbc4760ec8cbc09286b0a1ae888588f1ac01d28bda8644e8daca30d8
+   ```
+
+   Hash the **committed blob**, not the working-tree file: git stores this
+   repository LF-only under `.gitattributes`, so a Windows checkout hashes
+   differently for reasons that have nothing to do with WordPress.com.
+
+   A mismatch means restore `path: wordpress/trinity-rundown`,
+   `if-no-files-found: error`, and the artifact name `wpcom` -- then re-hash
+   until it matches. Either way, verify with `gh run download <id> -n wpcom`
+   that `trinity-rundown.php` sits at the **artifact root**; nested, and both
+   sites' next deploy ships a plugin WordPress cannot detect. If a deliberate
+   change to this file is ever made, update the hash above in the same commit.
 
 ### B. Plugin onto production
 
@@ -177,7 +199,7 @@ Week 2 additionally needs the writer to create the live post carrying the
 
 **New:** `pipeline/tests/test_workflow_targets.py`, written before the
 workflow edits and watched to fail first. It parses `build-week.yml` and
-asserts that the three target expressions are identical strings, that
+asserts that the four target expressions are identical strings, that
 `production` maps to `live` in the odds-mode block, and that the dispatch
 `odds` default is not `replay`. The first of those is the only failure in this
 work that corrupts data rather than erroring.
