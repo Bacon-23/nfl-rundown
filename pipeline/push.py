@@ -34,8 +34,28 @@ class TransientPushError(PushError):
 
 
 def endpoint(path: str) -> str:
+    """Build a route URL, refusing to name a host the token must not reach.
+
+    The scheme is checked here rather than left to the endpoint, because the
+    bearer token travels with the request: WordPress rejects a cleartext call
+    (`is_ssl()` in rest-ingest.php), but only once the credential has already
+    crossed the wire. httpx does not follow redirects by default, so an http://
+    value does not silently upgrade either -- it just leaks and then fails.
+
+    Distinct per-environment tokens already make a WP_SITE_URL pointing at the
+    wrong site fail loudly. This is the other half: a WP_SITE_URL pointing
+    somewhere unencrypted fails before anything is sent.
+    """
     if not config.WP_SITE_URL:
         raise PushError("WP_SITE_URL is not set.")
+
+    if not config.WP_SITE_URL.lower().startswith("https://"):
+        raise PushError(
+            f"WP_SITE_URL must start with https:// -- got {config.WP_SITE_URL!r}. "
+            "The bearer token is sent with the request, so it is not sent at all "
+            "until the destination is encrypted."
+        )
+
     return f"{config.WP_SITE_URL}/wp-json/{config.WP_REST_NAMESPACE}/{path.lstrip('/')}"
 
 

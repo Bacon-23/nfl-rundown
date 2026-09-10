@@ -15,6 +15,16 @@ hourly, and the opener stayed written-once. Phase 5's precondition is met.
 
 Week 1 is not the launch. Production launches Week 2.
 
+A security pass over the whole trust boundary ran on 2026-09-10, before any of
+this was executed. It found nothing in the SQL, escaping, nonce or capability
+layers, and three gaps worth closing first, all of which the runbook below now
+carries: environments had no deployment branch policy (step 2), `push.py` would
+send the bearer token to a non-`https://` `WP_SITE_URL` (step 2, and now
+refused in code), and the pipeline/editorial split was enforced by the sender's
+schema rather than by the receiver. That last one is a plugin change --
+`TRUN_Storage::RESERVED_KEYS` -- so the PHP gates below are real checks on this
+work rather than the confirmations they would otherwise have been.
+
 ## Decisions
 
 | Question | Answer |
@@ -91,7 +101,20 @@ Ordered so every irreversible step follows the thing that proves it safe.
    **different string from staging's** -- that is what makes a mistyped
    `WP_SITE_URL` fail loudly instead of writing to the wrong database.
 2. Create GitHub Environment `production` holding `WP_SITE_URL` (live domain,
-   no trailing slash) and `TRINITY_RUNDOWN_TOKEN`.
+   **`https://` scheme**, no trailing slash) and `TRINITY_RUNDOWN_TOKEN`. The
+   scheme is not cosmetic: the bearer token travels with the request, so
+   `push.endpoint()` refuses a non-`https://` value rather than let it reach
+   the wire. Then lock the environment to `main`, because a run naming it can
+   otherwise read both secrets from any branch, into public logs:
+
+   ```
+   gh api -X PUT repos/Bacon-23/nfl-rundown/environments/production -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
+   gh api -X POST repos/Bacon-23/nfl-rundown/environments/production/deployment-branch-policies -f name=main -f type=branch
+   ```
+
+   Do the same for `staging`, which has carried no policy since it was created.
+   Leave `can_admins_bypass` at its default: it is what keeps manual dispatch
+   working.
 3. Connect GitHub Deployments on the **production** site: branch `main`,
    destination `/wp-content/plugins/trinity-rundown`, **advanced mode**,
    **automatic off**.
@@ -119,6 +142,10 @@ Ordered so every irreversible step follows the thing that proves it safe.
    URL must return 403, and the reverse must return 403.
 9. Confirm production's table is still empty -- that nothing wrote to it
    during any of the above.
+9b. Dispatch `build-week` from a non-`main` branch against `environment=
+    production` and confirm GitHub refuses it. The branch policy is the only
+    thing standing between a pushed branch and the live token, so it is worth
+    one deliberate attempt to see it hold.
 
 ### D. First real write, hand-driven
 
