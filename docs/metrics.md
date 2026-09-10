@@ -258,6 +258,156 @@ share and his TGT RATE, and keeps everything else.
 
 ---
 
+## Home and away splits
+
+From `pipeline/metrics/splits.py`, over `nflreadpy.load_player_stats()` weekly
+rows joined to the schedule. Two tables — PPR for skill players, accuracy for
+kickers — sharing one question: does this player travel?
+
+### The window: the last 17 games
+
+Every other module on the page reads a season. These two read a fixed trailing
+count of games, per player, reaching back across the season boundary when this
+season has not supplied enough.
+
+The reason is arithmetic. A venue split halves whatever sample it is handed. On
+the season rule, weeks 2 to 7 hold one to three games at each venue, and a
+two-game home average is not a home average — the whole table would be dashes
+for six weeks. Seventeen games keeps roughly eight or nine a side all year.
+
+Counted **per player, not per team**: a back who missed six weeks is judged on
+the last seventeen games he played, not on the seventeen his team played
+without him. That is also why each cell carries its own count — see below.
+
+The window is `SPLIT_TRAILING_GAMES` in `pipeline/config.py`, and the badge that
+says so is written by `metrics/sample.py` like every other badge.
+
+### Home and away
+
+Which side was at home comes from the schedule feed, joined on `game_id`.
+nflverse does encode it in the id itself — `2026_01_NE_SEA` ends with the home
+team — but that is a naming convention, and the schedule is the feed that
+actually knows.
+
+Team codes go through `to_abbr()` on both sides of that join. An unmapped code
+would not raise here; it would quietly mark every one of that team's home games
+an away game, which is worse than a missing table because it looks like data.
+
+### PPR per game
+
+Full PPR exactly as nflverse scores it, in the `fantasy_points_ppr` column. We
+publish that number rather than computing one, so the rules are theirs:
+
+```
+1.0  per reception
+0.1  per rushing or receiving yard
+1/25 per passing yard
+4    per passing touchdown
+6    per rushing or receiving touchdown
+-2   per interception or lost fumble
+```
+
+**Four-point passing touchdowns**, which is worth stating because "PPR" is not
+one thing and plenty of leagues use six. Averaged over games played, not weeks
+elapsed — a player who missed six weeks is not a four-point receiver.
+
+Worked example: Aaron Rodgers, 2025 week 4 — 244 passing yards, 4 touchdowns,
+one rushing yard lost. 244/25 + 4x4 - 0.1 = 25.66, which is what the feed says.
+
+### Home, Away, and Split
+
+`Home` and `Away` are that average at each venue, printed with the games behind
+it: `20.0 (8)`. The count is not decoration. The module badge quotes a 17-game
+window, but a receiver in his second season has nine, and without the
+parenthetical the two read identically.
+
+`Split` is home minus away, signed. It is blank when either side is blank — a
+split measured against a dash is not a split.
+
+**Where a dash appears.** A venue with fewer than `SPLIT_MIN_GAMES_PER_SIDE`
+games (three) shows `-- (2)` rather than an average: below that, one big
+afternoon moves the number by more than the split it is supposed to measure.
+The player keeps his row, because his overall PPR is still a real number.
+
+`-- (2)` and a bare `--` are deliberately different states. The first is the
+pipeline saying it had two games and would not average them; the second is no
+data at all. Collapsing them would hide the difference between a thin sample
+and a broken join.
+
+### Who is listed
+
+The quarterback, then the four highest scorers among RB, WR and TE.
+
+The quarterback is **pinned rather than ranked**. On raw PPR a starting
+quarterback outscores his own receivers on almost every team, so ranking him
+would cost a skill-player row on all 32 and tell nobody anything. Which
+quarterback: the one with the most appearances in the window, not the highest
+scorer — a backup with two big afternoons is not the starter, and putting him
+at the top of the table says he is.
+
+A team with no qualifying quarterback simply has one row fewer. Row count is
+`FANTASY_ROWS`.
+
+As everywhere else, only players on the **active** roster appear, and week 1
+lists this year's players with last year's numbers — see *Week 1 lists this
+year's players with last year's numbers* below, which applies here unchanged.
+
+---
+
+## Kicking
+
+From the same weekly rows, same window, same venue join.
+
+### There is no points column, on purpose
+
+nflverse scores every kicker **0.0** fantasy points. Its formula excludes
+kicking outright — the only non-zero kicker-week in all of 2025 is Brandon
+Aubrey's six rushing yards on a fake, and the four field goals he made that
+afternoon scored him nothing.
+
+So any points figure here would be a scoring rule we invented. There is no
+single convention: 3/4/5 by distance is common, flat 3 is common, and whether a
+miss costs a point depends on the league. Rather than publish an editorial
+choice as though it were a fact, this table reports what is not in dispute —
+made, attempted, long, and volume. A live test in `test_live_feeds.py` holds
+the nflverse half of that claim, so if it ever changes we revisit the decision
+instead of quietly leaving the column off.
+
+### FG, FG%, Long, Att/gm
+
+- **FG** — made over attempted at that venue, e.g. `13/14`. Blocked attempts
+  count as attempts, the way every kicking table counts them.
+- **FG%** — made divided by attempted. A fraction in the payload, a percentage
+  on the page, like every other rate here.
+- **Long** — the longest field goal *made* at that venue during the window.
+- **Att/gm** — attempts divided by games played at that venue. Volume is the
+  half of a kicker that his offense controls rather than his leg.
+
+### Who qualifies
+
+One kicker per team: the one with the most appearances in the window. A team
+carries one, and listing the man he replaced in October would read as a
+competition that is not happening.
+
+He needs `KICKER_MIN_FG_ATT` (five) attempts across the whole window before he
+appears at all. A kicker signed in December has gone 2-for-2 somewhere, and
+100% off two kicks is not a hundred percent of anything.
+
+**A team can legitimately have no kicking table.** A rookie kicker has no NFL
+history to split — on the 2026 opening weekend that is Green Bay, the Giants and
+Washington, all three starting a kicker with no prior-season games. This is the
+one table where an empty side is a real outcome rather than a failed join, and
+it is the reason kickers are excluded from the build's missing-team warning.
+
+### The weather line
+
+The kicking module repeats the game's weather summary under its heading. It is
+the reason the table exists — a dome, an altitude, and a crosswind are exactly
+what a venue split measures — and it is otherwise twenty rows further up the
+page.
+
+---
+
 ## Weather
 
 Open-Meteo hourly forecast at the venue's coordinates, for the hour of kickoff.
@@ -330,6 +480,7 @@ visible badge:
 | 1 | Prior season, full year | `2025 season` |
 | 2 to 4 | Current season to date | `n = X games` |
 | 5+ | Current season to date | none |
+| any | Trailing 17 games (split tables only) | `last 17 games` |
 
 The cutovers are `PRIOR_SEASON_THROUGH_WEEK` and `SMALL_SAMPLE_THROUGH_WEEK` in
 `pipeline/config.py` — one constant each, not logic scattered across modules.
@@ -339,6 +490,16 @@ badge; the badge text lives in exactly one place.
 Where the two teams differ — after a bye, in weeks 2 to 4 — the badge quotes
 the **fewer** of the two. It is a claim about the table, and the table holds
 both teams, so it has to describe the thinner half.
+
+The fourth basis belongs to the home and away split tables alone, and it does
+not vary by week. They read a fixed window rather than a season because
+splitting by venue halves whatever sample it is given; the reasoning is in
+*Home and away splits* above. Their badge describes the window, so what each
+individual row rests on travels with the row as its own game counts.
+
+That is also why the admin screen's "stats basis" readout ignores those two
+modules: it answers "what is the whole screen resting on", and `last 17 games`
+would be a wrong answer to that question.
 
 Odds, weather, and injuries are exempt. They are always current.
 

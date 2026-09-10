@@ -273,7 +273,9 @@ function trun_render_modules( array $game ): string {
 	return trun_render_injuries( $game )
 		. trun_render_efficiency( $game )
 		. trun_render_passing( $game )
-		. trun_render_rushing( $game );
+		. trun_render_rushing( $game )
+		. trun_render_fantasy( $game )
+		. trun_render_kicking( $game );
 }
 
 /**
@@ -453,6 +455,213 @@ function trun_render_rushing( array $game ): string {
 	</section>
 	<?php
 	return (string) ob_get_clean();
+}
+
+/**
+ * PPR at home and on the road, one table per side.
+ *
+ * The badge on this module says "last 17 games", which is a claim about the
+ * window rather than about any one player -- a receiver in his second season
+ * has nine. So each venue cell carries its own game count: "20.0 (8)" is a
+ * different statement from "20.0 (17)", and the table would be dishonest
+ * without the parenthetical.
+ *
+ * A cell reading "-- (2)" is the pipeline saying it had two games and would
+ * not average them. That is deliberately distinct from a bare dash, which
+ * means no data at all.
+ */
+function trun_render_fantasy( array $game ): string {
+	$sides = trun_module_sides( $game, 'fantasy' );
+
+	if ( ! $sides ) {
+		return '';
+	}
+
+	$window = __( 'The player\'s last 17 games, which reaches back into last season rather than waiting for this one to build a sample. Splitting by venue halves whatever sample it is given.', 'trinity-rundown' );
+
+	$columns = [
+		[
+			'label' => __( 'Player', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
+		],
+		[
+			'label' => __( 'Pos', 'trinity-rundown' ),
+			'tip'   => __( 'The quarterback is pinned to the top of each table rather than ranked into it. On raw PPR he outscores his own receivers on almost every team, so ranking him would cost a skill-player row and tell you nothing.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => (string) ( $row['position'] ?? '' ),
+		],
+		[
+			'label' => __( 'PPR/gm', 'trinity-rundown' ),
+			'tip'   => __( 'Full PPR as nflverse scores it: one point per reception, one per 25 passing yards, four for a passing touchdown, a tenth per rushing and receiving yard. Averaged over games played, not weeks elapsed.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['ppr_per_game'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Home', 'trinity-rundown' ),
+			'tip'   => $window,
+			'cell'  => static fn( $row ) => trun_venue_cell( $row, 'home' ),
+		],
+		[
+			'label' => __( 'Away', 'trinity-rundown' ),
+			'tip'   => $window,
+			'cell'  => static fn( $row ) => trun_venue_cell( $row, 'away' ),
+		],
+		[
+			'label' => __( 'Split', 'trinity-rundown' ),
+			'tip'   => __( 'Home average minus away average. Blank when either side rests on fewer than three games -- a split measured against a dash is not a split.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_signed( $row['ppr_split'] ?? null, 1 ),
+		],
+	];
+
+	ob_start();
+	?>
+	<section class="trun-module trun-module--fantasy">
+		<h3 class="trun-module__heading">
+			<?php esc_html_e( 'Fantasy - PPR', 'trinity-rundown' ); ?>
+			<?php echo trun_render_badge( $game, 'fantasy' ); ?>
+		</h3>
+		<?php foreach ( $sides as $side ) : ?>
+			<?php echo trun_render_stat_table( $columns, $side['rows'], 'trun-table--fantasy', $side['label'], $side['side'] ); ?>
+		<?php endforeach; ?>
+	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * Kicker accuracy by venue, one table per side.
+ *
+ * No points column, deliberately. nflverse scores every kicker zero -- its
+ * fantasy formula excludes kicking outright -- so any points here would be a
+ * scoring rule we invented, and the reader's league would disagree with it.
+ * Made, attempted, and long are facts.
+ *
+ * The weather line repeats under the heading because it is the reason this
+ * table exists: a dome, an altitude, and a crosswind are exactly what a home
+ * and away split is measuring, and they are twenty rows up the page.
+ */
+function trun_render_kicking( array $game ): string {
+	$sides = trun_module_sides( $game, 'kicking' );
+
+	if ( ! $sides ) {
+		return '';
+	}
+
+	$columns = [
+		[
+			'label' => __( 'Split', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => 'home' === ( $row['venue'] ?? '' )
+				? __( 'At home', 'trinity-rundown' )
+				: __( 'On the road', 'trinity-rundown' ),
+		],
+		[
+			'label' => __( 'FG', 'trinity-rundown' ),
+			'tip'   => __( 'Field goals made and attempted at that venue over the kicker\'s last 17 games. Blocks count as attempts, the way every kicking table counts them.', 'trinity-rundown' ),
+			'cell'  => 'trun_fg_cell',
+		],
+		[
+			'label' => __( 'FG%', 'trinity-rundown' ),
+			'tip'   => __( 'Made divided by attempted at that venue. A kicker needs five attempts across the whole window before he appears at all: two-for-two is not a hundred percent of anything.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['fg_pct'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Long', 'trinity-rundown' ),
+			'tip'   => __( 'Longest field goal made at that venue during the window.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['fg_long'] ?? null, 0 ),
+		],
+		[
+			'label' => __( 'Att/gm', 'trinity-rundown' ),
+			'tip'   => __( 'Attempts divided by games played at that venue. Volume is the half of a kicker that his offense controls.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['fg_att_per_game'] ?? null, 1 ),
+		],
+	];
+
+	$weather = (string) trun_get( $game, 'weather.summary', '' );
+
+	ob_start();
+	?>
+	<section class="trun-module trun-module--kicking">
+		<h3 class="trun-module__heading">
+			<?php esc_html_e( 'Kickers', 'trinity-rundown' ); ?>
+			<?php echo trun_render_badge( $game, 'kicking' ); ?>
+		</h3>
+		<?php if ( '' !== $weather ) : ?>
+			<p class="trun-module__note"><?php echo esc_html( $weather ); ?></p>
+		<?php endif; ?>
+		<?php foreach ( $sides as $side ) : ?>
+			<?php echo trun_render_stat_table( $columns, $side['rows'], 'trun-table--kicking', trun_kicker_caption( $side ), $side['side'] ); ?>
+		<?php endforeach; ?>
+	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * "Seattle Seahawks - Jason Myers", or just the team when nobody is named.
+ *
+ * The kicker's name repeats on both of his rows in the payload precisely so
+ * the caption can be built here, without a module-level field that
+ * trun_module_sides() has no way to reach.
+ */
+function trun_kicker_caption( array $side ): string {
+	$team   = (string) ( $side['label'] ?? '' );
+	$kicker = (string) ( $side['rows'][0]['player'] ?? '' );
+
+	if ( '' === $kicker ) {
+		return $team;
+	}
+
+	/* translators: 1: team name, 2: kicker's name */
+	return sprintf( __( '%1$s - %2$s', 'trinity-rundown' ), $team, $kicker );
+}
+
+/**
+ * A venue average with the games behind it, e.g. "20.0 (8)".
+ *
+ * The count is not decoration. This module's badge quotes a 17-game window,
+ * but a player who has played nine gets nine, and without the parenthetical
+ * the two read identically.
+ *
+ * "-- (2)" is a real state: the pipeline had two games at that venue and
+ * refused to average them. A bare dash means it had nothing at all, and
+ * collapsing the two would hide the difference between a thin sample and a
+ * broken join.
+ */
+function trun_venue_cell( array $row, string $venue ): string {
+	$value = $row[ 'ppr_' . $venue ] ?? null;
+	$games = $row[ $venue . '_games' ] ?? null;
+	$count = is_numeric( $games ) ? ' (' . (int) $games . ')' : '';
+
+	if ( null === $value || ! is_numeric( $value ) ) {
+		return '--' . $count;
+	}
+
+	return number_format( (float) $value, 1 ) . $count;
+}
+
+/**
+ * A signed number, for a differential where the direction is the point.
+ *
+ * trun_percent()'s $signed flag does the same job for rates; this one is for
+ * a plain figure, where multiplying by a hundred would be wrong.
+ */
+function trun_signed( $value, int $places = 1 ): string {
+	if ( null === $value || '' === $value || ! is_numeric( $value ) ) {
+		return '--';
+	}
+
+	$number = (float) $value;
+
+	return ( $number > 0 ? '+' : '' ) . number_format( $number, $places );
+}
+
+/** Made over attempted, e.g. "13/14". A dash when he never lined one up. */
+function trun_fg_cell( array $row ): string {
+	$attempts = $row['fg_att'] ?? null;
+
+	if ( ! is_numeric( $attempts ) || (int) $attempts <= 0 ) {
+		return '--';
+	}
+
+	return (int) ( $row['fg_made'] ?? 0 ) . '/' . (int) $attempts;
 }
 
 /**

@@ -36,13 +36,13 @@ class TestMissingTeamWarnings:
         built = [game()]
         table = {"NE": [receiver()], "SEA": [receiver()]}
 
-        assert _missing_team_warnings(built, {}, table, {}) == []
+        assert _missing_team_warnings(built, ("receivers", table)) == []
 
     def test_a_team_with_an_empty_table_is_named(self):
         built = [game()]
         table = {"NE": [receiver()]}
 
-        warnings = _missing_team_warnings(built, {}, table, {})
+        warnings = _missing_team_warnings(built, ("receivers", table))
 
         assert len(warnings) == 1
         assert "SEA" in warnings[0]
@@ -51,16 +51,16 @@ class TestMissingTeamWarnings:
     def test_a_feed_that_produced_nothing_at_all_is_left_to_its_own_handler(self):
         """The module's own try/except already reported it. Naming all 32 teams
         here would bury that message rather than add to it."""
-        assert _missing_team_warnings([game()], {}, {}, {}) == []
+        assert _missing_team_warnings([game()], ("receivers", {})) == []
 
     def test_each_feed_is_reported_separately(self):
         built = [game()]
 
         warnings = _missing_team_warnings(
             built,
-            {"NE": TeamEfficiency(team="NE")},
-            {"NE": [receiver()]},
-            {"NE": [receiver()]},
+            ("team efficiency", {"NE": TeamEfficiency(team="NE")}),
+            ("receivers", {"NE": [receiver()]}),
+            ("backs", {"NE": [receiver()]}),
         )
 
         assert len(warnings) == 3
@@ -70,7 +70,7 @@ class TestMissingTeamWarnings:
         built = [game("NE", "SEA"), game("DAL", "NYG")]
         table = {"NE": [receiver()], "SEA": [receiver()], "DAL": [receiver()]}
 
-        warnings = _missing_team_warnings(built, {}, table, {})
+        warnings = _missing_team_warnings(built, ("receivers", table))
 
         assert "NYG" in warnings[0]
 

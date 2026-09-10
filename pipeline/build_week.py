@@ -4,8 +4,8 @@
     python -m pipeline.build_week --season 2026 --week 1 --push
 
 `_attach_modules` hangs everything that is not the header off each game --
-weather, season records, the three stat tables, and injuries. Every module
-fails on its own: a dead feed costs one section, never the page.
+weather, season records, the stat tables, and injuries. Every module fails on
+its own: a dead feed costs one section, never the page.
 """
 
 from __future__ import annotations
@@ -23,10 +23,13 @@ from pipeline.metrics import passing as passing_metric
 from pipeline.metrics import records as records_metric
 from pipeline.metrics import rushing as rushing_metric
 from pipeline.metrics import sample
+from pipeline.metrics import splits as splits_metric
 from pipeline.metrics.records import TeamRecords
 from pipeline.schema import (
     EfficiencyModule,
+    FantasyModule,
     Game,
+    KickingModule,
     Kickoff,
     PassingModule,
     RushingModule,
@@ -169,14 +172,16 @@ def _attach_modules(
 
 
 def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
-    """Hang efficiency, passing, and rushing off every game in the week.
+    """Hang every stat table off every game in the week.
 
-    The three modules fail independently. A dead snap-count feed should cost
-    the running-back table and nothing else, so each is caught on its own and
+    The modules fail independently. A dead snap-count feed should cost the
+    running-back table and nothing else, so each is caught on its own and
     reported as a warning rather than allowed to sink the build.
 
-    In week 1 `stats_season` points at the prior season, and every module is
-    badged accordingly by `sample.describe`.
+    In week 1 `stats_season` points at the prior season, and the three season
+    modules are badged accordingly by `sample.describe`. The two split tables
+    read a trailing window instead and carry their own badge, which is why they
+    do not take `basis` from the same call.
     """
     warnings: list[str] = []
     source_season = config.stats_season(season, week)
@@ -201,6 +206,20 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
         backs = rushing_metric.build(source_season, season)
     except Exception as exc:  # noqa: BLE001
         warnings.append(f"Rushing table unavailable ({source_season}): {exc}")
+
+    fantasy: dict = {}
+    try:
+        fantasy = splits_metric.build_fantasy(source_season, season)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Fantasy splits unavailable ({source_season}): {exc}")
+
+    kicking: dict = {}
+    try:
+        kicking = splits_metric.build_kicking(source_season, season)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Kicking splits unavailable ({source_season}): {exc}")
+
+    split_basis, split_badge = sample.trailing_describe()
 
     for game in built:
         sides = (game.away.abbr, game.home.abbr)
@@ -231,16 +250,48 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
                 home=backs.get(game.home.abbr, []),
             )
 
-    warnings.extend(_missing_team_warnings(built, efficiency, receivers, backs))
+        # The window is fixed, so `games_sampled` is the window rather than a
+        # count of this matchup's games. What each row actually rests on
+        # travels with the row, as its own home and away game counts.
+        if any(team in fantasy for team in sides):
+            game.fantasy = FantasyModule(
+                basis=split_basis,
+                badge=split_badge,
+                games_sampled=config.SPLIT_TRAILING_GAMES,
+                away=fantasy.get(game.away.abbr, []),
+                home=fantasy.get(game.home.abbr, []),
+            )
+
+        if any(team in kicking for team in sides):
+            game.kicking = KickingModule(
+                basis=split_basis,
+                badge=split_badge,
+                games_sampled=config.SPLIT_TRAILING_GAMES,
+                away=kicking.get(game.away.abbr, []),
+                home=kicking.get(game.home.abbr, []),
+            )
+
+    warnings.extend(
+        _missing_team_warnings(
+            built,
+            ("team efficiency", efficiency),
+            ("receivers", receivers),
+            ("backs", backs),
+            ("fantasy splits", fantasy),
+            # Kickers are deliberately not checked. The others rest on "every
+            # team has one", which holds for receivers and backs but not for a
+            # kicker measured over a trailing window: a rookie has no history
+            # to split. In 2026 that is three teams on opening weekend, and a
+            # warning that fires every build is one nobody reads.
+        )
+    )
 
     return warnings
 
 
 def _missing_team_warnings(
     built: list[Game],
-    efficiency: dict,
-    receivers: dict,
-    backs: dict,
+    *tables: tuple[str, dict],
 ) -> list[str]:
     """Name any team that ended up with an empty table while others filled.
 
@@ -257,11 +308,7 @@ def _missing_team_warnings(
     warnings: list[str] = []
     teams = sorted({game.away.abbr for game in built} | {game.home.abbr for game in built})
 
-    for label, table in (
-        ("team efficiency", efficiency),
-        ("receivers", receivers),
-        ("backs", backs),
-    ):
+    for label, table in tables:
         if not table:
             continue
         missing = [team for team in teams if not table.get(team)]

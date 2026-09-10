@@ -355,6 +355,17 @@
 	margin-block: 1.75rem;
 }
 
+/*
+ * The weather line, repeated under the Kickers heading. It is the reason that
+ * table exists -- roof, altitude and crosswind are what a venue split measures
+ * -- and it is otherwise twenty rows up the page.
+ */
+.trun-module__note {
+	margin-block: -0.25rem 0.75rem;
+	font-size: 0.75rem;
+	color: var(--trun-muted);
+}
+
 .trun-module__heading {
 	font-size: 0.75rem;
 	letter-spacing: 0.08em;
@@ -466,11 +477,20 @@
 /* Numbers right-align so magnitudes line up; the name column stays left. */
 .trun-table--efficiency td,
 .trun-table--passing td,
-.trun-table--rushing td {
+.trun-table--rushing td,
+.trun-table--fantasy td,
+.trun-table--kicking td {
 	text-align: right;
 }
 
-.trun-table--passing td:first-of-type {
+/*
+ * The passing table's role and the fantasy table's position are attributes of
+ * the name beside them rather than stats, so they read as part of the row
+ * header. The kicker table's first cell is the venue, which is the row's
+ * subject and left-aligns for the same reason.
+ */
+.trun-table--passing td:first-of-type,
+.trun-table--fantasy td:first-of-type {
 	text-align: left;
 	color: var(--trun-muted);
 	font-size: 0.8125rem;
@@ -478,14 +498,19 @@
 
 .trun-table--efficiency thead th,
 .trun-table--passing thead th,
-.trun-table--rushing thead th {
+.trun-table--rushing thead th,
+.trun-table--fantasy thead th,
+.trun-table--kicking thead th {
 	text-align: right;
 }
 
 .trun-table--efficiency thead th:first-child,
 .trun-table--passing thead th:first-child,
 .trun-table--passing thead th:nth-child(2),
-.trun-table--rushing thead th:first-child {
+.trun-table--rushing thead th:first-child,
+.trun-table--fantasy thead th:first-child,
+.trun-table--fantasy thead th:nth-child(2),
+.trun-table--kicking thead th:first-child {
 	text-align: left;
 }
 
@@ -636,20 +661,29 @@
 	}
 
 	/*
-	 * The three stat tables stack. Seven columns cannot be read on a phone
+	 * The stat tables stack. Seven columns cannot be read on a phone
 	 * sideways-scrolled either, and a reader who scrolls a table right loses
 	 * the row header that said whose number it is. Each cell instead prints
 	 * its own heading, out of the data-label the renderer emits.
+	 *
+	 * These five lists are enumerated rather than generic, so a new
+	 * trun-table-- class has to be added to every one of them. Miss one and
+	 * the desktop table still looks right while the phone silently becomes an
+	 * unlabelled column of bare numbers.
 	 */
 	.trun-table--efficiency thead,
 	.trun-table--passing thead,
-	.trun-table--rushing thead {
+	.trun-table--rushing thead,
+	.trun-table--fantasy thead,
+	.trun-table--kicking thead {
 		display: none;
 	}
 
 	.trun-table--efficiency tr,
 	.trun-table--passing tr,
-	.trun-table--rushing tr {
+	.trun-table--rushing tr,
+	.trun-table--fantasy tr,
+	.trun-table--kicking tr {
 		display: block;
 		padding-block: 0.625rem;
 		border-block-end: 1px solid var(--trun-border);
@@ -657,7 +691,9 @@
 
 	.trun-table--efficiency tbody th,
 	.trun-table--passing tbody th,
-	.trun-table--rushing tbody th {
+	.trun-table--rushing tbody th,
+	.trun-table--fantasy tbody th,
+	.trun-table--kicking tbody th {
 		display: block;
 		padding: 0 0 0.25rem;
 		border: 0;
@@ -666,7 +702,9 @@
 
 	.trun-table--efficiency td,
 	.trun-table--passing td,
-	.trun-table--rushing td {
+	.trun-table--rushing td,
+	.trun-table--fantasy td,
+	.trun-table--kicking td {
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
@@ -677,7 +715,9 @@
 
 	.trun-table--efficiency td::before,
 	.trun-table--passing td::before,
-	.trun-table--rushing td::before {
+	.trun-table--rushing td::before,
+	.trun-table--fantasy td::before,
+	.trun-table--kicking td::before {
 		content: attr(data-label);
 		font-size: 0.6875rem;
 		letter-spacing: 0.06em;
@@ -685,8 +725,9 @@
 		color: var(--trun-muted);
 	}
 
-	/* The passing table's role cell is an attribute of the name, not a stat. */
-	.trun-table--passing td:first-of-type {
+	/* Role and position are attributes of the name, not stats. */
+	.trun-table--passing td:first-of-type,
+	.trun-table--fantasy td:first-of-type {
 		font-size: 0.875rem;
 	}
 

@@ -111,6 +111,31 @@ RUSHER_ROWS: Final[int] = 3
 #: week 12.
 RUSHER_MIN_ATT_PER_GAME: Final[float] = 1.0
 
+#: The window the home/away split tables read, in games played by that player.
+#: Every other module reads a season; these read a fixed trailing count because
+#: a venue split halves whatever sample it is given. Under the season rule,
+#: weeks 2 to 7 hold one to three games per venue and the whole table would be
+#: dashes. Seventeen keeps roughly eight games a side all year, and crossing
+#: the season boundary to get them is a smaller lie than publishing a two-game
+#: home average as though it meant something.
+SPLIT_TRAILING_GAMES: Final[int] = 17
+
+#: Games at one venue before that side of a split is publishable. Below this a
+#: single big afternoon moves the average by more than the split it is meant to
+#: measure, so the cell shows a dash. The player keeps his row: his overall PPR
+#: is still a real number.
+SPLIT_MIN_GAMES_PER_SIDE: Final[int] = 3
+
+#: Rows in the fantasy table: the quarterback, plus four. The quarterback is
+#: pinned rather than ranked, because on raw PPR he takes the top slot on
+#: almost every team and the four spots below him are the point of the table.
+FANTASY_ROWS: Final[int] = 5
+
+#: Field goal attempts a kicker needs across the whole window before his
+#: accuracy is worth printing. A kicker signed in December has gone 2-for-2
+#: somewhere, and 100% off two kicks is not a hundred percent of anything.
+KICKER_MIN_FG_ATT: Final[int] = 5
+
 #: Pace is measured in neutral game states only, because trailing teams hurry
 #: and leading teams stall -- which says more about the scoreboard than about
 #: the offense.

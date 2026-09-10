@@ -15,6 +15,7 @@ starts producing dashes nobody can explain:
 
 from __future__ import annotations
 
+import polars as pl
 import pytest
 
 from pipeline.sources import pbp as pbp_source
@@ -56,6 +57,55 @@ def test_player_stats_still_have_every_column_we_read():
 
     assert set(frame.columns) >= players_source.REQUIRED_COLUMNS
     assert frame.height > 10_000
+
+
+def test_ppr_points_arrive_per_game_already_scored():
+    """We publish nflverse's PPR rather than computing one. If it ever ships a
+    season total instead of a per-game figure, every average on the split table
+    would be seventeen times too large and still look plausible."""
+    frame = players_source.load(SEASON)
+    ppr = frame["fantasy_points_ppr"].drop_nulls()
+
+    assert ppr.max() < 100
+    # A full PPR season clears 300; one game does not.
+    assert ppr.max() > 30
+
+
+def test_no_kick_scores_a_fantasy_point():
+    """This is why the kicker table has no points column. nflverse's formula
+    excludes kicking outright, so the only points we could print would be a
+    scoring rule we invented. If nflverse ever starts scoring kicks, revisit
+    that decision rather than quietly leaving the column off.
+
+    Kicked points only: over 2025 exactly one kicker-week is non-zero, and it
+    is Brandon Aubrey's six rushing yards on a fake in week 15. He also made
+    four field goals that afternoon and they scored him nothing, which is the
+    claim this test exists to hold.
+    """
+    frame = players_source.load(SEASON)
+    kicked = frame.filter(
+        (pl.col("position") == "K")
+        & (pl.col("carries").fill_null(0) == 0)
+        & (pl.col("receptions").fill_null(0) == 0)
+        & (pl.col("attempts").fill_null(0) == 0)
+    )
+
+    assert kicked.height > 400
+    # Kickers who did nothing but kick, including the ones who kicked a lot.
+    assert kicked["fg_made"].fill_null(0).max() >= 4
+    assert kicked["fantasy_points_ppr"].fill_null(0.0).abs().max() == 0.0
+
+
+def test_field_goal_accuracy_can_be_computed_from_made_over_attempts():
+    """The split table divides these itself rather than taking nflverse's
+    fg_pct, so both columns have to keep counting the same kicks."""
+    frame = players_source.load(SEASON)
+    kickers = frame.filter(pl.col("position") == "K")
+
+    assert kickers["fg_att"].fill_null(0).sum() > 900
+    assert (
+        kickers["fg_made"].fill_null(0).sum() <= kickers["fg_att"].fill_null(0).sum()
+    )
 
 
 def test_snap_shares_are_fractions_rather_than_percentages():

@@ -558,6 +558,58 @@ alarming for no reason.
 Phase 5's precondition -- a full rehearsal on staging before production is
 touched -- is therefore met.
 
+**Home and away splits landed 2026-09-09**, adding two blocks the page had
+never carried: PPR at home and on the road for each team's quarterback plus its
+four highest-scoring skill players, and kicker accuracy by venue.
+
+Most of this was free. `nflreadpy.load_player_stats()` already ships
+`fantasy_points_ppr` per player per week -- standard PPR with **four-point
+passing touchdowns**, verified by hand against Aaron Rodgers' week 4 -- along
+with the full kicking box score, and `game_id` joins a player-week to the
+schedule that knows which side was at home. Nothing needed computing.
+
+What was not free was the kicker. **nflverse scores every kicker 0.0**: its
+fantasy formula excludes kicking outright, and the only non-zero kicker-week in
+2025 is Brandon Aubrey's six rushing yards on a fake, in a game where he also
+made four field goals worth nothing. So the kicking table reports made,
+attempted, long, and volume, and carries no points column at all -- any number
+there would be a scoring rule we invented, and no two leagues agree on one. A
+live test holds that claim so a change upstream reopens the decision rather
+than silently leaving a column off.
+
+*The window is the one place these tables diverge from the rest of the page.*
+They read a trailing 17 games per player rather than a season, because a venue
+split halves whatever sample it is handed: under the season rule, weeks 2 to 7
+hold one to three games per venue and both tables would be six weeks of dashes.
+That costs a fourth `basis` value and one badge string, `last 17 games`. Since
+the badge then describes the window rather than any one player, each venue cell
+carries its own count -- `20.0 (8)` -- and a side below three games prints
+`-- (2)`, which is deliberately a different statement from a bare dash.
+
+Two things the build itself found:
+
+- **Three teams have no kicking table on opening weekend**, and that is
+  correct. Green Bay, the Giants and Washington all start rookie kickers with
+  no NFL history to split. The missing-team warning rests on "every team has
+  one", which holds for receivers and backs but not for a kicker measured over
+  a trailing window, so kickers are excluded from it -- a warning that fires
+  every build is one nobody reads.
+- **`away` and `home` were already taken.** At module level those keys mean
+  *which team*, and `trun_module_sides()` is built around that. The venue axis
+  therefore lives inside each row -- `ppr_home`, `ppr_away`, and a `venue`
+  field on the kicker rows -- rather than as a second level that would have
+  overloaded the helper.
+
+Gates: 225 offline tests and 11 live, `php -l` on all eight PHP files, phpcs
+clean on the committed ruleset, and no CRLF. The rendered page was checked at
+900px and 375px, light and dark, and against a payload with both new keys
+stripped -- the two sections vanish and everything else renders unchanged. The
+phone reflow was the risk worth checking: `rundown.css` enumerates its stacking
+selectors per table class rather than matching generically, so a new class that
+misses one of the five lists looks right on a desktop and becomes an unlabelled
+column of bare numbers on a phone. Both new classes are in all five, verified
+in a browser rather than by reading the file.
+
 Still to do: the production cutover (Phase 5). One dated hazard sits in that
 window -- the odds fixture is per-week, so the hourly staging build fails the
 moment Week 2 opens without a re-recorded fixture, and recording now costs the

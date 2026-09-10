@@ -433,12 +433,17 @@ function trun_admin_render_readout( array $game ): void {
 }
 
 /**
- * What sample the stat tables rest on, in one phrase.
+ * What sample the season stat tables rest on, in one phrase.
  *
- * All three modules share a basis, so reading it off whichever one is present
- * is enough. It matters most in week 1, where every number on the screen comes
- * from last season and a writer who does not notice would describe it as this
- * year's form.
+ * The three season modules share a basis, so reading it off whichever one is
+ * present is enough. It matters most in week 1, where every number on the
+ * screen comes from last season and a writer who does not notice would
+ * describe it as this year's form.
+ *
+ * Fantasy and kicking are deliberately not in the list. They read a trailing
+ * window rather than a season, so their badge answers a different question and
+ * quoting it here would describe the whole screen wrongly. Their own badges
+ * still render above their own tables.
  */
 function trun_admin_stats_basis( array $game ): string {
 	foreach ( [ 'efficiency', 'passing', 'rushing' ] as $module ) {
@@ -469,7 +474,9 @@ function trun_admin_stats_basis( array $game ): string {
 function trun_admin_render_stats( array $game ): void {
 	$tables = trun_render_efficiency( $game )
 		. trun_render_passing( $game )
-		. trun_render_rushing( $game );
+		. trun_render_rushing( $game )
+		. trun_render_fantasy( $game )
+		. trun_render_kicking( $game );
 
 	if ( '' === $tables ) {
 		return;

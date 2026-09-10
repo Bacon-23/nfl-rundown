@@ -17,7 +17,14 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 OddsSource = Literal["odds_api", "nflverse_fallback"]
-SampleBasis = Literal["prior_season", "small_sample", "current_season"]
+SampleBasis = Literal[
+    "prior_season",
+    "small_sample",
+    "current_season",
+    #: A fixed trailing count of games rather than a season. Only the
+    #: home/away split modules use this; see config.SPLIT_TRAILING_GAMES.
+    "trailing",
+]
 
 
 class Base(BaseModel):
@@ -123,6 +130,54 @@ class RusherRow(Base):
     yards_per_att: float | None = None
 
 
+class SplitRow(Base):
+    """One player's PPR average, and how it moves between venues.
+
+    `home` and `away` here are the venue, not the side of the matchup -- at
+    module level those same two words already mean which team, and the PHP
+    helper that reads them is built around that. The venue axis therefore lives
+    inside the row and nowhere else.
+
+    A side with too few games carries None rather than a thin average, and the
+    game counts travel with the values so the reader can see what each rests
+    on. `ppr_split` is home minus away, and is None when either side is.
+    """
+
+    player: str
+    position: str | None = None
+    #: PPR per game across the whole window, both venues together.
+    ppr_per_game: float | None = None
+    ppr_home: float | None = None
+    ppr_away: float | None = None
+    home_games: int | None = None
+    away_games: int | None = None
+    ppr_split: float | None = None
+
+
+class KickerRow(Base):
+    """One kicker at one venue.
+
+    Deliberately no points column. nflverse scores every kicker 0.0 fantasy
+    points -- its formula excludes kicking outright -- so any number here would
+    be a scoring rule we invented, and the reader's league would disagree with
+    it. Accuracy and volume are facts.
+
+    The kicker's name repeats on both of his rows so the renderer can read it
+    off a row rather than needing a module-level field, which the PHP side's
+    away/home helper has no way to reach.
+    """
+
+    player: str
+    venue: Literal["home", "away"]
+    fg_made: int | None = None
+    fg_att: int | None = None
+    #: A fraction between 0 and 1, like every other rate in this payload.
+    fg_pct: float | None = None
+    fg_long: int | None = None
+    fg_att_per_game: float | None = None
+    games: int | None = None
+
+
 class Module(Base):
     """A stat table plus the provenance a reader needs to weigh it."""
 
@@ -146,6 +201,16 @@ class RushingModule(Module):
     home: list[RusherRow] = Field(default_factory=list)
 
 
+class FantasyModule(Module):
+    away: list[SplitRow] = Field(default_factory=list)
+    home: list[SplitRow] = Field(default_factory=list)
+
+
+class KickingModule(Module):
+    away: list[KickerRow] = Field(default_factory=list)
+    home: list[KickerRow] = Field(default_factory=list)
+
+
 class Game(Base):
     game_id: str
     season: int
@@ -167,6 +232,12 @@ class Game(Base):
     efficiency: EfficiencyModule | None = None
     passing: PassingModule | None = None
     rushing: RushingModule | None = None
+
+    #: Both read a trailing window rather than a season, so their badge does
+    #: not match the three above. The admin screen's "stats basis" readout
+    #: deliberately ignores them for that reason.
+    fantasy: FantasyModule | None = None
+    kicking: KickingModule | None = None
 
     #: Reserved so adding defense-vs-position in Phase 5 does not change the
     #: shape of anything already shipped.
