@@ -228,7 +228,14 @@ class TRUN_Storage {
 		return 1 === $rows;
 	}
 
-	/** Force-overwrite an opener. Only the --backfill-open repair path uses this. */
+	/**
+	 * Force-overwrite an opener, bypassing the write-once guard.
+	 *
+	 * NOTE: nothing calls this. It was written for a `--backfill-open` repair
+	 * path that `plan.md` once promised and that was never built, so a wrong
+	 * opener currently needs a direct row edit. Wiring this to a CLI flag is
+	 * the cheap version of that repair path -- the hard part is already here.
+	 */
 	public static function force_opening_line( int $season, int $week, string $game_id, array $line ): void {
 		global $wpdb;
 		$wpdb->update(
