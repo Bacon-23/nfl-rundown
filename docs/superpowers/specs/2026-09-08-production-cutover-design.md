@@ -33,6 +33,7 @@ work rather than the confirmations they would otherwise have been.
 | When does production's cron start? | **Immediately at cutover**, during Week 1. |
 | How does the cron change hands? | **A repo variable**, `SCHEDULED_TARGET`. |
 | Failure alerting | **GitHub's built-in email.** No new infrastructure. |
+| How is the weekly post gated? | **A post, not a page**, with the Paywall block **above** the tables. Reader checks are logged-in from Week 2 on. |
 
 Two of these pay for each other. Retiring the staging cron removes the odds
 fixture treadmill entirely: `--replay-odds` resolves its path from season and
@@ -188,9 +189,12 @@ Ordered so every irreversible step follows the thing that proves it safe.
 
 ### Recommended, optional
 
-15. Run publish, freeze, push and unlock on **production** against a **draft**
-    post during Week 1. Invisible to readers, and it exercises the freeze on
-    the live database rather than trusting that staging's rehearsal transfers.
+15. Run publish, freeze, push and unlock on **production** against a **draft
+    post** during Week 1 -- a post rather than a page, with the
+    subscriber-access level already set, so the rehearsal exercises the Week 2
+    artifact instead of an ungated approximation. Invisible to readers, and it
+    exercises the freeze on the live database rather than trusting that
+    staging's rehearsal transfers.
 
 ### F. Take the opener by hand -- Monday, then Tuesday
 
@@ -238,7 +242,34 @@ Once `force_opening_line()` is reachable from the CLI, a bad opener stops being
 permanent and this section can go back to being optional.
 
 Week 2 additionally needs the writer to create the live post carrying the
-`[rundown_week]` shortcode.
+`[rundown_week]` shortcode. A **post**, not a page: categories and
+WordPress.com's subscriber access (Everybody / Free / Paid) exist only on
+posts, and a page can be gated only by core's Private/Password visibility,
+which is not the mechanism this site uses. Week 1 landed as a page, so this is
+a correction of what happened rather than a restatement.
+
+Gating also changes how the result can be checked. Every reader-facing
+verification so far has fetched the URL anonymously with a cache-buster -- that
+is how published-vs-live-data was settled during the staging rehearsal. Against
+a post gated to paid subscribers that fetch returns the paywall, not the
+tables.
+
+**Decided 2026-09-10: the Paywall block sits above the tables**, and the
+reader view is verified from a logged-in paid account. The dashboard is the
+product being sold, so leaving the numbers below the block -- anonymously
+readable, which would have kept the old check working -- was not a trade worth
+making. A paid test account exists for this.
+
+The cost is that **the anonymous check no longer verifies anything about the
+tables**, and it fails in the quiet direction: a cache-busted anonymous fetch
+of a gated post still returns `200`, with a paywall where the numbers should
+be. A "did the page render?" script written against the staging rehearsal
+would keep passing while showing a reader nothing. Reader-facing checks from
+Week 2 on are logged-in, or they are not checks.
+
+Step 11's "cache-bust anything fetched over HTTP before believing it" matters
+more here, not less: gated and ungated responses cache separately, so a paid
+session can be served a cached anonymous response and vice versa.
 
 ## Testing
 
