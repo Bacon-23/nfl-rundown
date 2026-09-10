@@ -362,26 +362,31 @@ function trun_render_passing( array $game ): string {
 	$columns = [
 		[
 			'label' => __( 'Player', 'trinity-rundown' ),
+			'width' => '32%',
 			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
 		],
 		[
 			'label' => __( 'Role', 'trinity-rundown' ),
+			'width' => '13%',
 			'tip'   => __( 'Numbered within position across the whole team, and assigned before the five-row cut -- so a team\'s WR3 is its third receiver, not the third name left in the table.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => (string) ( $row['role'] ?? '' ),
 		],
 		[
 			'label' => __( 'Tgt share', 'trinity-rundown' ),
+			'width' => '18%',
 			'tip'   => __( 'Player targets divided by team targets, season to date.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
 		],
 		[
 			// The one heading on the page that would mislead without its tooltip.
 			'label' => __( 'Tgt rate', 'trinity-rundown' ),
+			'width' => '18%',
 			'tip'   => __( 'Targets per estimated pass snap -- a proxy for TPRR, which requires charted route data. It reads high against a true TPRR figure; the ranking is sound, the level is not comparable.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['target_rate'] ?? null, 1 ),
 		],
 		[
 			'label' => __( 'Rec yds/gm', 'trinity-rundown' ),
+			'width' => '19%',
 			'tip'   => __( 'Receiving yards divided by games with at least one offensive snap, so weeks missed entirely do not drag the average down.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_decimal( $row['rec_yds_per_game'] ?? null, 1 ),
 		],
@@ -418,25 +423,30 @@ function trun_render_rushing( array $game ): string {
 	$columns = [
 		[
 			'label' => __( 'Player', 'trinity-rundown' ),
+			'width' => '32%',
 			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
 		],
 		[
 			'label' => __( 'Snap %', 'trinity-rundown' ),
+			'width' => '15%',
 			'tip'   => __( 'Pro Football Reference offensive snap share, averaged over games the player appeared in rather than over the season. The table is sorted on this.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['snap_share'] ?? null ),
 		],
 		[
 			'label' => __( 'Rush att/gm', 'trinity-rundown' ),
+			'width' => '19%',
 			'tip'   => __( 'Rushing attempts divided by games with a snap. A back needs one attempt a game to appear here at all.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_decimal( $row['rush_att_per_game'] ?? null, 1 ),
 		],
 		[
 			'label' => __( 'Tgt share', 'trinity-rundown' ),
+			'width' => '17%',
 			'tip'   => __( 'Player targets divided by team targets, season to date. The same figure, from the same code, as in the passing table.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
 		],
 		[
 			'label' => __( 'Yds/att', 'trinity-rundown' ),
+			'width' => '17%',
 			'tip'   => __( 'Rushing yards divided by rushing attempts.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_decimal( $row['yards_per_att'] ?? null, 1 ),
 		],
@@ -482,30 +492,36 @@ function trun_render_fantasy( array $game ): string {
 	$columns = [
 		[
 			'label' => __( 'Player', 'trinity-rundown' ),
+			'width' => '30%',
 			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
 		],
 		[
 			'label' => __( 'Pos', 'trinity-rundown' ),
+			'width' => '10%',
 			'tip'   => __( 'The quarterback is pinned to the top of each table rather than ranked into it. On raw PPR he outscores his own receivers on almost every team, so ranking him would cost a skill-player row and tell you nothing.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => (string) ( $row['position'] ?? '' ),
 		],
 		[
 			'label' => __( 'PPR/gm', 'trinity-rundown' ),
+			'width' => '16%',
 			'tip'   => __( 'Full PPR as nflverse scores it: one point per reception, one per 25 passing yards, four for a passing touchdown, a tenth per rushing and receiving yard. Averaged over games played, not weeks elapsed.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_decimal( $row['ppr_per_game'] ?? null, 1 ),
 		],
 		[
 			'label' => __( 'Home', 'trinity-rundown' ),
+			'width' => '15%',
 			'tip'   => $window,
 			'cell'  => static fn( $row ) => trun_venue_cell( $row, 'home' ),
 		],
 		[
 			'label' => __( 'Away', 'trinity-rundown' ),
+			'width' => '14%',
 			'tip'   => $window,
 			'cell'  => static fn( $row ) => trun_venue_cell( $row, 'away' ),
 		],
 		[
 			'label' => __( 'Split', 'trinity-rundown' ),
+			'width' => '15%',
 			'tip'   => __( 'Home average minus away average. Blank when either side rests on fewer than three games -- a split measured against a dash is not a split.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_signed( $row['ppr_split'] ?? null, 1 ),
 		],
@@ -548,27 +564,32 @@ function trun_render_kicking( array $game ): string {
 	$columns = [
 		[
 			'label' => __( 'Split', 'trinity-rundown' ),
+			'width' => '30%',
 			'cell'  => static fn( $row ) => 'home' === ( $row['venue'] ?? '' )
 				? __( 'At home', 'trinity-rundown' )
 				: __( 'On the road', 'trinity-rundown' ),
 		],
 		[
 			'label' => __( 'FG', 'trinity-rundown' ),
+			'width' => '16%',
 			'tip'   => __( 'Field goals made and attempted at that venue over the kicker\'s last 17 games. Blocks count as attempts, the way every kicking table counts them.', 'trinity-rundown' ),
 			'cell'  => 'trun_fg_cell',
 		],
 		[
 			'label' => __( 'FG%', 'trinity-rundown' ),
+			'width' => '18%',
 			'tip'   => __( 'Made divided by attempted at that venue. A kicker needs five attempts across the whole window before he appears at all: two-for-two is not a hundred percent of anything.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['fg_pct'] ?? null, 1 ),
 		],
 		[
 			'label' => __( 'Long', 'trinity-rundown' ),
+			'width' => '16%',
 			'tip'   => __( 'Longest field goal made at that venue during the window.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_decimal( $row['fg_long'] ?? null, 0 ),
 		],
 		[
 			'label' => __( 'Att/gm', 'trinity-rundown' ),
+			'width' => '20%',
 			'tip'   => __( 'Attempts divided by games played at that venue. Volume is the half of a kicker that his offense controls.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_decimal( $row['fg_att_per_game'] ?? null, 1 ),
 		],
@@ -676,6 +697,20 @@ function trun_fg_cell( array $row ): string {
  * The first column is the row header. Every other cell carries `data-label`,
  * which is what the stacked layout below 640px renders in front of the value:
  * without it the numbers arrive in a column with nothing saying what they are.
+ *
+ * A column may also declare a `width`, and that is what keeps a module's two
+ * tables -- one per team -- on the same grid. Left to itself a table sizes its
+ * columns from its own content, so the home side's numbers landed nowhere near
+ * the away side's above them. A spec that declares no width keeps automatic
+ * sizing: the single-table modules have nothing to line up with, and their
+ * headings are too long to survive a fixed share of the width.
+ *
+ * The width goes on the header cell rather than into a <colgroup>, which is
+ * not a style preference. Below 640px the rows stop being table rows, and a
+ * colgroup then applies its first width to the one anonymous column the
+ * browser makes of them -- every stacked card squeezed to 30% of the panel.
+ * The header row is display:none there, so widths written on it go away
+ * exactly when the fixed layout they feed does.
  */
 function trun_render_stat_table( array $columns, array $rows, string $table_class, string $caption = '', string $side = '' ): string {
 	ob_start();
@@ -688,7 +723,7 @@ function trun_render_stat_table( array $columns, array $rows, string $table_clas
 			<thead>
 				<tr>
 				<?php foreach ( $columns as $column ) : ?>
-					<th scope="col">
+					<th scope="col"<?php echo empty( $column['width'] ) ? '' : ' style="width: ' . esc_attr( $column['width'] ) . ';"'; ?>>
 						<?php
 						echo empty( $column['tip'] )
 							? esc_html( $column['label'] )
