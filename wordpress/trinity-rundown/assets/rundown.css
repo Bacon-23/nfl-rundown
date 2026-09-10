@@ -474,6 +474,24 @@
 	margin-block-start: 1.25rem;
 }
 
+/*
+ * The two-sided modules render one table per team, one under the other, and
+ * automatic layout sized each side's columns from that side's own content --
+ * so the two disagreed about where every column after the name began, which
+ * reads as a rendering fault rather than as two tables. Fixed layout makes
+ * them honour the widths render.php writes on the header row instead, and
+ * identical widths in two boxes of identical width line up.
+ *
+ * Efficiency and injuries are single tables with nothing to line up against,
+ * and stay automatic.
+ */
+.trun-table--passing,
+.trun-table--rushing,
+.trun-table--fantasy,
+.trun-table--kicking {
+	table-layout: fixed;
+}
+
 /* Numbers right-align so magnitudes line up; the name column stays left. */
 .trun-table--efficiency td,
 .trun-table--passing td,
@@ -729,6 +747,19 @@
 	.trun-table--passing td:first-of-type,
 	.trun-table--fantasy td:first-of-type {
 		font-size: 0.875rem;
+	}
+
+	/*
+	 * Stacked rows are no longer table rows, so the column widths on the
+	 * header -- hidden just above -- have nothing left to size. Say so
+	 * rather than leaving a fixed layout to divide up a table that has no
+	 * columns any more.
+	 */
+	.trun-table--passing,
+	.trun-table--rushing,
+	.trun-table--fantasy,
+	.trun-table--kicking {
+		table-layout: auto;
 	}
 
 	/* Nothing overflows once stacked, so the scroll box would only clip. */
