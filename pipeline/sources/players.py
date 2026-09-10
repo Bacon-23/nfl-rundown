@@ -4,6 +4,10 @@ Targets, receiving yards, carries, and rushing yards, one row per player per
 game. Everything in the passing and rushing tables is summed from here; the
 snap share that turns targets into a rate comes from `snaps.py`.
 
+The same rows carry PPR points and the kicking box score, which is what the
+home/away split tables read. Those want the weekly grain rather than a season
+total, so they go through `trailing_weeks` instead of `season_totals`.
+
 Regular season only, for the same reason season records are: a table badged
 "2025 season" means the regular season, which is what every other site
 publishes.
@@ -12,6 +16,7 @@ publishes.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import Final
 
 import nflreadpy as nfl
@@ -34,6 +39,16 @@ REQUIRED_COLUMNS: Final[frozenset[str]] = frozenset(
         "receiving_yards",
         "carries",
         "rushing_yards",
+        # The home/away split tables. `game_id` is what joins a player-week to
+        # the schedule that knows which side was at home; nflverse computes
+        # `fantasy_points_ppr` for us, so no scoring rule is written here.
+        "game_id",
+        "fantasy_points_ppr",
+        "fg_made",
+        "fg_att",
+        "fg_long",
+        "pat_made",
+        "pat_att",
     }
 )
 
@@ -68,6 +83,25 @@ def load(season: int) -> pl.DataFrame:
         _cache[season] = frame
 
     return _cache[season]
+
+
+def trailing_weeks(seasons: Sequence[int]) -> pl.DataFrame:
+    """Several seasons of weekly rows, stacked, oldest season first.
+
+    The split tables read a window measured in games rather than in seasons, so
+    they need to be able to walk back across a season boundary. Each season
+    still goes through `load`, which means the per-season cache and the
+    regular-season filter both still apply.
+    """
+    frames = [load(season) for season in sorted(seasons)]
+
+    if not frames:
+        raise PlayerStatsUnavailable("No seasons requested.")
+
+    # how="vertical_relaxed" rather than "vertical": nflverse has widened
+    # integer columns between seasons before, and a dtype mismatch between two
+    # years of the same feed is not a reason to lose a table.
+    return pl.concat(frames, how="vertical_relaxed")
 
 
 def season_totals(season: int) -> pl.DataFrame:
