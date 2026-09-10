@@ -140,3 +140,65 @@ def test_push_does_not_retry_a_rejected_token():
         push.push_week(_payload())
 
     assert route.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Where the token is allowed to go
+# ---------------------------------------------------------------------------
+#
+# The bearer token is sent with the request, so the destination has to be
+# checked before the request is built rather than by whatever answers it. The
+# endpoint's own is_ssl() guard rejects a cleartext call, but only after the
+# credential has already crossed the wire -- and a WP_SITE_URL pointing
+# somewhere unintended is exactly the mistake the cutover runbook is trying to
+# catch. httpx does not follow redirects by default, so an http:// value never
+# silently upgrades either.
+
+
+@pytest.mark.parametrize(
+    "site_url",
+    [
+        "http://example.test",
+        "HTTP://example.test",
+        "example.test",
+        "//example.test",
+        "ftp://example.test",
+    ],
+)
+def test_endpoint_refuses_to_send_the_token_anywhere_but_https(monkeypatch, site_url):
+    monkeypatch.setattr(config, "WP_SITE_URL", site_url)
+
+    with pytest.raises(push.PushError, match="WP_SITE_URL"):
+        push.endpoint("health")
+
+
+def test_endpoint_names_the_variable_and_the_value_it_got(monkeypatch):
+    """The operator reading this is mid-runbook, so the message has to be actionable."""
+    monkeypatch.setattr(config, "WP_SITE_URL", "http://rundown.example")
+
+    with pytest.raises(push.PushError) as caught:
+        push.endpoint("week")
+
+    message = str(caught.value)
+    assert "WP_SITE_URL" in message
+    assert "http://rundown.example" in message
+
+
+def test_endpoint_still_builds_an_https_url(monkeypatch):
+    monkeypatch.setattr(config, "WP_SITE_URL", "https://example.test")
+
+    assert push.endpoint("week") == "https://example.test/wp-json/trinity-rundown/v1/week"
+
+
+def test_endpoint_accepts_https_whatever_the_case(monkeypatch):
+    monkeypatch.setattr(config, "WP_SITE_URL", "HTTPS://example.test")
+
+    assert push.endpoint("health").endswith("/wp-json/trinity-rundown/v1/health")
+
+
+def test_an_unset_site_url_still_says_so(monkeypatch):
+    """The empty case predates the scheme guard and keeps its own message."""
+    monkeypatch.setattr(config, "WP_SITE_URL", "")
+
+    with pytest.raises(push.PushError, match="not set"):
+        push.endpoint("health")

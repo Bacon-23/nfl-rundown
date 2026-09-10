@@ -79,6 +79,24 @@ class TRUN_Storage {
 	const STICKY_KEYS = [ 'injuries', 'weather', 'efficiency', 'passing', 'rushing', 'fantasy', 'kicking', 'dvp' ];
 
 	/**
+	 * Keys the pipeline may not set, whatever it sends.
+	 *
+	 * The column split keeps editorial out of stats_json, but the merged view
+	 * leaks around it: merge_row() only assigns $merged['notes'] when
+	 * notes_json is non-empty, which is not the normal state -- an untouched
+	 * game stores {} and the assignment is skipped. A `notes` key riding
+	 * inside stats_json would survive that and render as editorial prose.
+	 *
+	 * The Python payload schema already forbids extra keys, but that is the
+	 * sender. This is the receiver, so it also covers `wp rundown seed` and
+	 * anything else that reaches upsert_stats() later.
+	 *
+	 * `_meta` is here for a different reason: merge_row() synthesises it, so a
+	 * stored one would be shadowed at best and misleading at worst.
+	 */
+	const RESERVED_KEYS = [ 'notes', '_meta' ];
+
+	/**
 	 * Upsert the pipeline-owned half of a game row.
 	 *
 	 * Editorial columns are never named in the ON DUPLICATE KEY UPDATE clause,
@@ -96,6 +114,7 @@ class TRUN_Storage {
 		$order   = isset( $game['sort_order'] ) ? (int) $game['sort_order'] : 0;
 		$now     = current_time( 'mysql', true );
 
+		$game     = self::strip_reserved( $game );
 		$existing = self::get_game( $season, $week, $game_id );
 		$game     = self::carry_forward( $game, $existing );
 		$stats    = wp_json_encode( $game );
@@ -137,6 +156,21 @@ class TRUN_Storage {
 		);
 
 		return $existing ? 'updated' : 'inserted';
+	}
+
+	/**
+	 * Drop the keys a pipeline payload has no business carrying.
+	 *
+	 * Silent by design. A payload containing `notes` is a bug in whatever built
+	 * it rather than something an operator can act on mid-run, and the REST
+	 * response already reports per-game outcomes.
+	 */
+	private static function strip_reserved( array $game ): array {
+		foreach ( self::RESERVED_KEYS as $key ) {
+			unset( $game[ $key ] );
+		}
+
+		return $game;
 	}
 
 	/**

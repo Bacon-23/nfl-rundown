@@ -66,7 +66,7 @@ to next week while it is still being played.
 | Variable | Needed for | Notes |
 |---|---|---|
 | `ODDS_API_KEY` | live odds | Without it the build falls back to nflverse lines and warns. Not needed when replaying. |
-| `WP_SITE_URL` | `--push` | e.g. `https://example.com`, no trailing slash. |
+| `WP_SITE_URL` | `--push` | e.g. `https://example.com`. **Must start with `https://`**, no trailing slash — the push refuses anything else rather than put the token on the wire in cleartext. |
 | `TRINITY_RUNDOWN_TOKEN` | `--push` | Must match the constant in that site's `wp-config.php`. |
 | `ODDS_BOOK` | optional | Defaults to `draftkings`. |
 
@@ -75,6 +75,12 @@ to next week while it is still being played.
 Staging and production are separate WordPress sites with separate databases and
 **separate tokens**. One token per site is deliberate: a mistyped `WP_SITE_URL`
 then fails loudly instead of quietly writing to the wrong database.
+
+That covers the wrong *site*. The other half is the wrong *scheme*: the bearer
+token is sent with the request, so `endpoint()` in `pipeline/push.py` refuses a
+`WP_SITE_URL` that is not `https://` before building the request at all. The
+plugin's own `is_ssl()` check cannot help there — by the time it runs, the
+credential has already crossed the wire.
 
 | | Staging | Production |
 |---|---|---|
@@ -95,6 +101,12 @@ is committed.
 `WP_SITE_URL` and `TRINITY_RUNDOWN_TOKEN` live in **GitHub Environments**, not
 repo-level secrets, so a job only ever holds the credential for the site it
 declares. `ODDS_API_KEY` is repo-level, since one subscription serves both.
+
+Each environment carries a **deployment branch policy limiting it to `main`**.
+Without one, any workflow run naming the environment can read its secrets from
+any branch — including a branch carrying an edited `build-week.yml`, whose logs
+are public because this repository is. The policy also stops an accidental
+dispatch from a work-in-progress branch writing to a live site.
 
 > **Do not use WordPress.com's "Push to Production" sync.** Its dialog offers to
 > copy the database, which would overwrite live posts with staging content.
