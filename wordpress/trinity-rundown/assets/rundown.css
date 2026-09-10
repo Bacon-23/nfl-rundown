@@ -376,8 +376,18 @@
 	border-block-end: 1px solid var(--trun-rule);
 }
 
+/*
+ * The border reset is not tidiness. Trinity Analytics' theme ships
+ * `table, td, th { border: 1px solid }` and then `table { border-width: 1px 0
+ * 0 1px }`, and a table here is content-box -- so `width: 100%` resolved to
+ * the scroll box's width and the theme's left border pushed one pixel past
+ * it. Every table on the page overflowed by exactly 1px, and the browser drew
+ * a horizontal scrollbar under each one for it. The rules below own every
+ * edge they draw, so a theme cannot add an edge we did not ask for.
+ */
 .trun-table {
 	width: 100%;
+	border: 0;
 	border-collapse: collapse;
 	font-size: 0.9375rem;
 }
@@ -386,6 +396,7 @@
 .trun-table td {
 	padding: 0.5rem 0.625rem;
 	text-align: left;
+	border: 0;
 	border-block-end: 1px solid var(--trun-border);
 	vertical-align: baseline;
 }
