@@ -203,15 +203,28 @@ the single write in the system that is not.
 
 The rest of this runbook is ordered so that every irreversible step follows the
 thing that proves it safe. That principle was never applied to the irreversible
-step itself: left alone, `opening_line` for Week 2 is written **unattended, at
-05:00 UTC Tuesday** -- the first scheduled run after `--week auto` rolls over,
-four hours past the Week 1 Monday-nighter's kickoff.
+step itself: left alone, `opening_line` for Week 2 is written **unattended, in
+the small hours of Tuesday UTC** -- the first scheduled run after `--week auto`
+rolls over, roughly two and a half hours past the Week 1 Monday-nighter's
+kickoff.
+
+*Corrected 2026-09-11, before execution: this said "at 05:00 UTC Tuesday",
+which was the nominal cron time read off `0 * * * 0,2,3,4,5,6` rather than an
+observed one. Measured over 23 scheduled runs from 2026-09-06 to 2026-09-10,
+GitHub delivers 6-8 runs a day rather than the ~19 the schedule asks for, with
+a median gap of 3.6 hours and a start minute scattered across the whole hour.
+The first run back after the Monday exclusion landed at **02:45 UTC**, and
+every sampled day opens between 02:34 and 02:45. The unattended write is
+therefore due about two and a quarter hours earlier than this document claimed.
+That matters only if step 16 is left until late Monday -- but it is the one
+deadline here that cannot be missed twice. The Monday quiet window itself
+measured 27.3 hours, comfortably wider than the 24 claimed in step 16.*
 
 Two things make that hour a bad one to be asleep for. The opener is whatever
 odds that build happens to see, so a book that has not yet posted Week 2 lines
 freezes a placeholder. And per the accepted gap below, a build that degrades to
 `nflverse_fallback` **still reports success** -- the banner that would warn a
-human appears in the admin screen, which nobody is reading at 05:00 UTC. There
+human appears in the admin screen, which nobody is reading at 02:45 UTC. There
 is no repair path: `--backfill-open` was documented but never built, and
 `TRUN_Storage::force_opening_line()` has no callers.
 
@@ -220,9 +233,10 @@ nothing about whether the *number* frozen that night is any good.
 
 16. **Monday (UTC), any time:** set `SCHEDULED_TARGET` back to `staging`, or
     unset `CRON_ENABLED`. Free of consequence -- the cron excludes Monday
-    (`0 * * * 0,2,3,4,5,6`), so there is a natural 24-hour gap with no
-    scheduled runs to interrupt. Do not skip this because nothing appears to
-    be happening; that is precisely the window.
+    (`0 * * * 0,2,3,4,5,6`), so there is a natural gap of more than 24 hours
+    (27.3 measured) with no scheduled runs to interrupt. Do not skip this
+    because nothing appears to be happening; that is precisely the window.
+    Do it early: the window closes at about 02:45 Tuesday UTC, not 05:00.
 
 17. **Tuesday, at a waking hour:** dispatch `environment=production,
     week=2, odds=live, push=false`. Read the payload artifact and check
@@ -307,7 +321,8 @@ remaining.
 
 The last row is the one to keep in view. It is the only state in this system a
 re-run cannot repair, and left alone the cutover schedules production's
-first-ever Week 2 build to be the one that sets it, unattended, at 05:00 UTC.
+first-ever Week 2 build to be the one that sets it, unattended, at roughly
+02:45 UTC.
 
 **Live-fire does not cover this, and the original draft of this document said
 it did.** Running the hourly path dozens of times before Tuesday proves the
