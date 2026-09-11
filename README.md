@@ -123,11 +123,19 @@ secrets from any branch — including a branch carrying an edited
 also stops an accidental dispatch from a work-in-progress branch writing to a
 live site.
 
-**Neither environment carries one yet.** `staging` has had none since it was
-created, and `production` does not exist until the cutover. Both are applied in
-the cutover runbook (step 2 of
-[`docs/superpowers/specs/2026-09-08-production-cutover-design.md`](docs/superpowers/specs/2026-09-08-production-cutover-design.md));
-until then, treat the paragraph above as the requirement rather than the state.
+**Both environments carry one**, applied in step 2 of the cutover runbook
+([`docs/superpowers/specs/2026-09-08-production-cutover-design.md`](docs/superpowers/specs/2026-09-08-production-cutover-design.md))
+and verified 2026-09-11: `custom_branch_policies` on, `protected_branches` off,
+one entry each, `main`. Re-check with:
+
+```
+gh api repos/Bacon-23/nfl-rundown/environments/staging/deployment-branch-policies
+gh api repos/Bacon-23/nfl-rundown/environments/production/deployment-branch-policies
+```
+
+Read the **entry list**, not the environment's `deployment_branch_policy`
+object. `custom_branch_policies: true` with zero entries matches no branch and
+fails every deployment, and the summary field reads identically either way.
 Leave `can_admins_bypass` at its default — that is what keeps manual dispatch
 working.
 
