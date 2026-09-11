@@ -1,7 +1,9 @@
 # Phase 5: the production cutover
 
-Status: approved, not yet implemented. Written 2026-09-08, the day before
-Week 1 kickoff.
+Status: executed through step 11 on 2026-09-11. The cron handover (step 12)
+and section F remain. Written 2026-09-08, the day before Week 1 kickoff, and
+corrected in place as it was executed -- each dated note below marks somewhere
+the document was wrong when it met the live system.
 
 ## What is already true
 
@@ -125,6 +127,14 @@ Ordered so every irreversible step follows the thing that proves it safe.
 3. Connect GitHub Deployments on the **production** site: branch `main`,
    destination `/wp-content/plugins/trinity-rundown`, **advanced mode**,
    **automatic off**.
+
+   *Corrected 2026-09-11, during execution: WordPress.com pre-fills the
+   destination with the **repository** name rather than the plugin name, so the
+   field arrives reading `nfl-rundown` and must be changed by hand. Left alone,
+   the deploy reports success and the files land somewhere WordPress does not
+   load -- `wp plugin list` returns nothing and the plugin directory does not
+   exist, which reads like a deploy that never ran rather than one that went to
+   the wrong place.*
 4. Immediately after: check `main` for a WordPress.com-generated commit and
    diff `.github/workflows/wpcom.yml`. Connecting force-writes that file with
    its generated default of `path: [., !.git*]`.
@@ -149,20 +159,73 @@ Ordered so every irreversible step follows the thing that proves it safe.
    sites' next deploy ships a plugin WordPress cannot detect. If a deliberate
    change to this file is ever made, update the hash above in the same commit.
 
+   *Observed 2026-09-11: connecting a **second** site to an already-connected
+   repository did not rewrite the file. The hash matched before connecting,
+   after connecting, and again after the first production deploy. The
+   force-write appears to happen on a repository's first connection only. Run
+   the check regardless -- a no-op costs one command, and what it guards
+   against is shipping the whole monorepo to both sites.*
+
 ### B. Plugin onto production
 
 5. Deploy manually from WordPress.com. Verify the files landed, re-deriving
    production's site root rather than assuming `/srv/htdocs` -- that is a
    staging fact and production inherits nothing.
+
+   *Corrected 2026-09-11, during execution: that warning was right and pointed
+   the wrong way. Production's `ABSPATH` is `/srv/htdocs/__wp__/` --
+   WordPress.com keeps core in `__wp__` while `wp-content` stays one level up
+   -- so `ABSPATH . 'wp-content'` names a path that does not exist. Derive the
+   plugin directory instead, and ask WordPress rather than the filesystem:*
+
+   ```
+   ls -la "$(wp eval 'echo WP_PLUGIN_DIR;')/trinity-rundown"
+   wp plugin list | grep -i trinity
+   ```
+
+   *`WP_PLUGIN_DIR` is `/srv/htdocs/wp-content/plugins` on both sites; only
+   `ABSPATH` differs. The second command is the one that actually answers
+   whether the deploy landed somewhere WordPress loads from.*
 6. Activate the plugin; confirm `wp_trinity_rundown_games` was created.
 
 ### C. Prove the transport before trusting it
 
-7. Anonymous `/health` probe against production. Reachability should be
-   uninteresting on a public site, but the token pairing is new and this is
-   what tests it.
+7. Anonymous `/health` probe against production.
+
+   *Corrected 2026-09-11, during execution: `/health` is **not** anonymous. It
+   carries `permission_callback => 'trun_rest_authorize'`, the same gate as
+   `/week`, so an unauthenticated probe never returns `ok: true` and this step
+   does not test the token pairing as written. It is still worth running, for a
+   better reason: `trun_rest_authorize` checks `defined()` before it parses the
+   header, so the response reports whether `wp-config.php` was edited correctly
+   without the token leaving either machine.*
+
+   | Anonymous GET returns | Means |
+   |---|---|
+   | `503 trun_not_configured` | `TRINITY_RUNDOWN_TOKEN` undefined or empty |
+   | `400 trun_insecure` | reached over plain HTTP |
+   | `401 trun_no_token` | constant is defined and non-empty -- what you want |
+   | `403 trun_bad_token` | a token was sent and did not match |
+
+   *A clean WordPress `401` also clears the firewall: All-in-One WP Security is
+   active on both sites and is the standing first suspect for unexplained REST
+   403s. The pairing itself is proven later, by the authenticated probe the
+   push path runs at the top of step 11.*
 8. **Cross-environment rejection test.** Staging's token against production's
    URL must return 403, and the reverse must return 403.
+
+   *Added 2026-09-11: two 403s do not settle this on their own. If both tokens
+   were empty or malformed, both directions would return 403 and the step would
+   pass while nothing worked. Pair them with a positive control -- production's
+   own token against production, which must return `200` and `ok: true`.*
+
+   *Run each direction from the other server, so neither token is displayed,
+   pasted, or copied to a third machine:*
+
+   ```
+   TOK=$(wp config get TRINITY_RUNDOWN_TOKEN); curl -sS -o /dev/null -w "%{http_code}
+" -H "Authorization: Bearer $TOK" "https://<the-other-site>/wp-json/trinity-rundown/v1/health?cb=$(date +%s)"; unset TOK
+   ```
 9. Confirm production's table is still empty -- that nothing wrote to it
    during any of the above.
 9b. Dispatch `build-week` from a non-`main` branch against `environment=
@@ -203,15 +266,28 @@ the single write in the system that is not.
 
 The rest of this runbook is ordered so that every irreversible step follows the
 thing that proves it safe. That principle was never applied to the irreversible
-step itself: left alone, `opening_line` for Week 2 is written **unattended, at
-05:00 UTC Tuesday** -- the first scheduled run after `--week auto` rolls over,
-four hours past the Week 1 Monday-nighter's kickoff.
+step itself: left alone, `opening_line` for Week 2 is written **unattended, in
+the small hours of Tuesday UTC** -- the first scheduled run after `--week auto`
+rolls over, roughly two and a half hours past the Week 1 Monday-nighter's
+kickoff.
+
+*Corrected 2026-09-11, before execution: this said "at 05:00 UTC Tuesday",
+which was the nominal cron time read off `0 * * * 0,2,3,4,5,6` rather than an
+observed one. Measured over 23 scheduled runs from 2026-09-06 to 2026-09-10,
+GitHub delivers 6-8 runs a day rather than the ~19 the schedule asks for, with
+a median gap of 3.6 hours and a start minute scattered across the whole hour.
+The first run back after the Monday exclusion landed at **02:45 UTC**, and
+every sampled day opens between 02:34 and 02:45. The unattended write is
+therefore due about two and a quarter hours earlier than this document claimed.
+That matters only if step 16 is left until late Monday -- but it is the one
+deadline here that cannot be missed twice. The Monday quiet window itself
+measured 27.3 hours, comfortably wider than the 24 claimed in step 16.*
 
 Two things make that hour a bad one to be asleep for. The opener is whatever
 odds that build happens to see, so a book that has not yet posted Week 2 lines
 freezes a placeholder. And per the accepted gap below, a build that degrades to
 `nflverse_fallback` **still reports success** -- the banner that would warn a
-human appears in the admin screen, which nobody is reading at 05:00 UTC. There
+human appears in the admin screen, which nobody is reading at 02:45 UTC. There
 is no repair path: `--backfill-open` was documented but never built, and
 `TRUN_Storage::force_opening_line()` has no callers.
 
@@ -220,14 +296,25 @@ nothing about whether the *number* frozen that night is any good.
 
 16. **Monday (UTC), any time:** set `SCHEDULED_TARGET` back to `staging`, or
     unset `CRON_ENABLED`. Free of consequence -- the cron excludes Monday
-    (`0 * * * 0,2,3,4,5,6`), so there is a natural 24-hour gap with no
-    scheduled runs to interrupt. Do not skip this because nothing appears to
-    be happening; that is precisely the window.
+    (`0 * * * 0,2,3,4,5,6`), so there is a natural gap of more than 24 hours
+    (27.3 measured) with no scheduled runs to interrupt. Do not skip this
+    because nothing appears to be happening; that is precisely the window.
+    Do it early: the window closes at about 02:45 Tuesday UTC, not 05:00.
 
 17. **Tuesday, at a waking hour:** dispatch `environment=production,
     week=2, odds=live, push=false`. Read the payload artifact and check
     `odds_source`. If it is `nflverse_fallback`, the book has not posted or
     the API is unwell -- wait and dispatch again rather than pushing.
+
+    *Sharpened 2026-09-11: check `odds.source` on **all sixteen games
+    individually**, and read it from the payload rather than the run log. The
+    log's summary line prints `INFO rundown.build: Odds source: odds_api` while
+    an individual game sits on fallback -- observed on the step 10 dry run,
+    where fifteen games carried DraftKings lines and `2026_01_NE_SEA` had
+    degraded to nflverse consensus, because the book delists a game once it has
+    been played. A Tuesday build can degrade the same way across whatever
+    subset of games the book has not yet posted, and the log will not say so.
+    The check is: every game reads `odds_api`, or you do not push.*
 
 18. When `odds_source` names the book and the lines look sane, dispatch again
     with `push=true`. That write sets the opener for all 16 games,
@@ -307,7 +394,8 @@ remaining.
 
 The last row is the one to keep in view. It is the only state in this system a
 re-run cannot repair, and left alone the cutover schedules production's
-first-ever Week 2 build to be the one that sets it, unattended, at 05:00 UTC.
+first-ever Week 2 build to be the one that sets it, unattended, at roughly
+02:45 UTC.
 
 **Live-fire does not cover this, and the original draft of this document said
 it did.** Running the hourly path dozens of times before Tuesday proves the
