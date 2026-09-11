@@ -195,7 +195,13 @@ Enormous headroom — the cadence in `config.py` can be turned up substantially,
 
 ### Opening lines without paying 10×
 
-Rather than calling the historical endpoint, the pipeline **records the first odds it sees each week** into `opening_line` and never overwrites it (write-once at the DB layer, so a bad re-run can't corrupt it). The Tuesday 12:00 UTC run establishes the opener. If a run is missed, `build_week.py --backfill-open` hits the historical endpoint once as a repair path — an exception, not the normal flow.
+Rather than calling the historical endpoint, the pipeline **records the first odds it sees each week** into `opening_line` and never overwrites it (write-once at the DB layer, so a bad re-run can't corrupt it).
+
+The opener is set by the **first scheduled run after `--week auto` rolls over**, which is four hours past the previous week's last kickoff — for Week 2 of 2026, 05:00 UTC Tuesday. Not the 12:00 UTC run; that is the team-totals probe hour, which is unrelated.
+
+> **There is no repair path.** Earlier drafts of this document promised `build_week.py --backfill-open`, and it was never built — in neither the pipeline nor the CLI. `TRUN_Storage::force_opening_line()` exists in the plugin and has no callers. A wrong opener today needs a direct row edit.
+>
+> This matters because the opener is written unattended by default, and a build that degrades to nflverse fallback lines still reports success. Until a repair path exists, take manual control of the first build of a week: dispatch with `push=false`, confirm `odds_source` is the book rather than `nflverse_fallback`, then push.
 
 Rendering: `SEA -4.5 (opened -3.5)`. The parenthetical is suppressed when the line hasn't moved.
 

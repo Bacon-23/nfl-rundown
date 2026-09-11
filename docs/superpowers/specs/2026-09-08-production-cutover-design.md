@@ -33,6 +33,7 @@ work rather than the confirmations they would otherwise have been.
 | When does production's cron start? | **Immediately at cutover**, during Week 1. |
 | How does the cron change hands? | **A repo variable**, `SCHEDULED_TARGET`. |
 | Failure alerting | **GitHub's built-in email.** No new infrastructure. |
+| How is the weekly post gated? | **A post, not a page**, with the Paywall block **above** the tables. Reader checks are logged-in from Week 2 on. |
 
 Two of these pay for each other. Retiring the staging cron removes the odds
 fixture treadmill entirely: `--replay-odds` resolves its path from season and
@@ -57,12 +58,18 @@ assuming as headroom.
 Four edits to `.github/workflows/build-week.yml`. No pipeline changes.
 
 1. **Target resolution** becomes `inputs.environment || vars.SCHEDULED_TARGET
-   || 'staging'` in all three places that read `inputs.environment ||
-   'staging'` today: `concurrency.group`, the job's `environment:` key, and
-   `TARGET` in the build step's env. These must move together. If
-   `concurrency` disagrees with `environment`, a manual staging run and the
-   production cron stop being mutually exclusive and can interleave writes
-   into one week's rows.
+   || 'staging'` in all **four** places that read `inputs.environment ||
+   'staging'` today: `concurrency.group`, the job's `environment:` key,
+   `TARGET` in the build step's env, and the payload artifact's name. These
+   must move together. If `concurrency` disagrees with `environment`, a manual
+   staging run and the production cron stop being mutually exclusive and can
+   interleave writes into one week's rows.
+
+   *Corrected 2026-09-10, during implementation: this said "three places" and
+   omitted the artifact name. That fourth one is cosmetic -- a mislabelled
+   download, not a corrupted row -- but a production run uploading
+   `payload-staging` is misleading in exactly the window where steps 10 and 11
+   have someone inspecting payloads by hand, so it moves with the others.*
 
 2. **The odds mode needs no edit.** The build step already reads
    `if [ "$TARGET" = "production" ]; then MODE=live`. Once `TARGET` resolves
@@ -120,11 +127,27 @@ Ordered so every irreversible step follows the thing that proves it safe.
    **automatic off**.
 4. Immediately after: check `main` for a WordPress.com-generated commit and
    diff `.github/workflows/wpcom.yml`. Connecting force-writes that file with
-   its generated default of `path: [., !.git*]`. Restore
-   `path: wordpress/trinity-rundown`, `if-no-files-found: error`, and the
-   artifact name `wpcom`. Verify with `gh run download <id> -n wpcom` that
-   `trinity-rundown.php` sits at the **artifact root**; nested, and both
-   sites' next deploy ships a plugin WordPress cannot detect.
+   its generated default of `path: [., !.git*]`.
+
+   The known-good file as of 2026-09-10 is pinned by hash, so this is a
+   comparison rather than a from-memory reading:
+
+   ```
+   git fetch origin main
+   git cat-file -p origin/main:.github/workflows/wpcom.yml | sha256sum
+   # 2f01bfc7cbc4760ec8cbc09286b0a1ae888588f1ac01d28bda8644e8daca30d8
+   ```
+
+   Hash the **committed blob**, not the working-tree file: git stores this
+   repository LF-only under `.gitattributes`, so a Windows checkout hashes
+   differently for reasons that have nothing to do with WordPress.com.
+
+   A mismatch means restore `path: wordpress/trinity-rundown`,
+   `if-no-files-found: error`, and the artifact name `wpcom` -- then re-hash
+   until it matches. Either way, verify with `gh run download <id> -n wpcom`
+   that `trinity-rundown.php` sits at the **artifact root**; nested, and both
+   sites' next deploy ships a plugin WordPress cannot detect. If a deliberate
+   change to this file is ever made, update the hash above in the same commit.
 
 ### B. Plugin onto production
 
@@ -166,18 +189,93 @@ Ordered so every irreversible step follows the thing that proves it safe.
 
 ### Recommended, optional
 
-15. Run publish, freeze, push and unlock on **production** against a **draft**
-    post during Week 1. Invisible to readers, and it exercises the freeze on
-    the live database rather than trusting that staging's rehearsal transfers.
+15. Run publish, freeze, push and unlock on **production** against a **draft
+    post** during Week 1 -- a post rather than a page, with the
+    subscriber-access level already set, so the rehearsal exercises the Week 2
+    artifact instead of an ungated approximation. Invisible to readers, and it
+    exercises the freeze on the live database rather than trusting that
+    staging's rehearsal transfers.
+
+### F. Take the opener by hand -- Monday, then Tuesday
+
+This section is not optional. Steps 1-14 are all reversible; this one covers
+the single write in the system that is not.
+
+The rest of this runbook is ordered so that every irreversible step follows the
+thing that proves it safe. That principle was never applied to the irreversible
+step itself: left alone, `opening_line` for Week 2 is written **unattended, at
+05:00 UTC Tuesday** -- the first scheduled run after `--week auto` rolls over,
+four hours past the Week 1 Monday-nighter's kickoff.
+
+Two things make that hour a bad one to be asleep for. The opener is whatever
+odds that build happens to see, so a book that has not yet posted Week 2 lines
+freezes a placeholder. And per the accepted gap below, a build that degrades to
+`nflverse_fallback` **still reports success** -- the banner that would warn a
+human appears in the admin screen, which nobody is reading at 05:00 UTC. There
+is no repair path: `--backfill-open` was documented but never built, and
+`TRUN_Storage::force_opening_line()` has no callers.
+
+The live-fire runs from step 12 onward de-risk the *machinery*. They say
+nothing about whether the *number* frozen that night is any good.
+
+16. **Monday (UTC), any time:** set `SCHEDULED_TARGET` back to `staging`, or
+    unset `CRON_ENABLED`. Free of consequence -- the cron excludes Monday
+    (`0 * * * 0,2,3,4,5,6`), so there is a natural 24-hour gap with no
+    scheduled runs to interrupt. Do not skip this because nothing appears to
+    be happening; that is precisely the window.
+
+17. **Tuesday, at a waking hour:** dispatch `environment=production,
+    week=2, odds=live, push=false`. Read the payload artifact and check
+    `odds_source`. If it is `nflverse_fallback`, the book has not posted or
+    the API is unwell -- wait and dispatch again rather than pushing.
+
+18. When `odds_source` names the book and the lines look sane, dispatch again
+    with `push=true`. That write sets the opener for all 16 games,
+    permanently. Confirm with `wp rundown status --season=2026 --week=2`.
+
+19. Set `SCHEDULED_TARGET=production` again and confirm the next scheduled run
+    reads `Target: production | odds: live`. Everything from here is
+    idempotent, and the hourly cadence can be left alone.
+
+The same four steps apply to every subsequent week until a repair path exists.
+Once `force_opening_line()` is reachable from the CLI, a bad opener stops being
+permanent and this section can go back to being optional.
 
 Week 2 additionally needs the writer to create the live post carrying the
-`[rundown_week]` shortcode.
+`[rundown_week]` shortcode. A **post**, not a page: categories and
+WordPress.com's subscriber access (Everybody / Free / Paid) exist only on
+posts, and a page can be gated only by core's Private/Password visibility,
+which is not the mechanism this site uses. Week 1 landed as a page, so this is
+a correction of what happened rather than a restatement.
+
+Gating also changes how the result can be checked. Every reader-facing
+verification so far has fetched the URL anonymously with a cache-buster -- that
+is how published-vs-live-data was settled during the staging rehearsal. Against
+a post gated to paid subscribers that fetch returns the paywall, not the
+tables.
+
+**Decided 2026-09-10: the Paywall block sits above the tables**, and the
+reader view is verified from a logged-in paid account. The dashboard is the
+product being sold, so leaving the numbers below the block -- anonymously
+readable, which would have kept the old check working -- was not a trade worth
+making. A paid test account exists for this.
+
+The cost is that **the anonymous check no longer verifies anything about the
+tables**, and it fails in the quiet direction: a cache-busted anonymous fetch
+of a gated post still returns `200`, with a paywall where the numbers should
+be. A "did the page render?" script written against the staging rehearsal
+would keep passing while showing a reader nothing. Reader-facing checks from
+Week 2 on are logged-in, or they are not checks.
+
+Step 11's "cache-bust anything fetched over HTTP before believing it" matters
+more here, not less: gated and ungated responses cache separately, so a paid
+session can be served a cached anonymous response and vice versa.
 
 ## Testing
 
 **New:** `pipeline/tests/test_workflow_targets.py`, written before the
 workflow edits and watched to fail first. It parses `build-week.yml` and
-asserts that the three target expressions are identical strings, that
+asserts that the four target expressions are identical strings, that
 `production` maps to `live` in the odds-mode block, and that the dispatch
 `odds` default is not `replay`. The first of those is the only failure in this
 work that corrupts data rather than erroring.
@@ -192,7 +290,7 @@ CI, where the install is `pip install -e ".[dev]"`.
 ruleset, and the CRLF byte check. No plugin files change here, so the PHP
 gates are confirmations rather than checks.
 
-**Ops verification** is the 14 steps, each producing evidence rather than an
+**Ops verification** is the 19 steps, each producing evidence rather than an
 impression: row counts from `wp rundown status`, both 403 bodies from the
 isolation test, the target log line, staging's frozen `updated_at`, quota
 remaining.
@@ -205,12 +303,21 @@ remaining.
 | Bad plugin on production | Re-deploy an earlier commit. Deploys merge rather than replace, so files that must disappear need the directory deleted on the server first | Manual, minutes |
 | Wrong stats in a row | Re-run; the build is idempotent and `stats_json` is pipeline-owned | Automatic |
 | Editorial clobbered | Cannot happen by design -- separate columns, proven over three pushes in the rehearsal | -- |
-| Bad `opening_line` | **No clean path.** Write-once at the DB layer; a wrong opener needs a direct row edit | Manual DB surgery |
+| Bad `opening_line` | **No clean path.** Write-once at the DB layer; a wrong opener needs a direct row edit. Prevented, not recovered -- see section F | Manual DB surgery |
 
 The last row is the one to keep in view. It is the only state in this system a
-re-run cannot repair, and the cutover schedules production's first-ever Week 2
-build to be the one that sets it. Starting the cron during Week 1 is what
-de-risks it: by that Tuesday the hourly path will have run about 150 times.
+re-run cannot repair, and left alone the cutover schedules production's
+first-ever Week 2 build to be the one that sets it, unattended, at 05:00 UTC.
+
+**Live-fire does not cover this, and the original draft of this document said
+it did.** Running the hourly path dozens of times before Tuesday proves the
+machinery works; it says nothing about whether the number frozen that night is
+a good one, because the failure mode here is a build that succeeds while
+quietly using fallback lines. Section F is the actual mitigation: take the
+first write of each week by hand, look at `odds_source`, and push only when it
+names the book. Live-fire is still worth having -- it is what makes the rest of
+the runbook's reversible steps boring -- but it is not what protects the
+opener.
 
 ## Accepted gaps
 
@@ -220,6 +327,17 @@ de-risks it: by that Tuesday the hourly path will have run about 150 times.
   `odds_source: "nflverse_fallback"` and the admin screen banners it, so the
   writer sees it before publishing. Only unattended hours are uncovered.
   Revisit after Week 2.
+
+  The one unattended hour that cannot be shrugged off is the one that sets
+  `opening_line`, because that write is permanent. Section F takes it out of
+  the unattended set by hand; everything else degrades recoverably.
+- **No repair path for a wrong opener.** `--backfill-open` was promised by
+  `plan.md` and `metrics.md` and never built; both were corrected on
+  2026-09-10 to stop describing a fix that does not exist.
+  `TRUN_Storage::force_opening_line()` is written and has no callers. Wiring
+  it to a WP-CLI flag is small -- the hard part is done -- and would turn
+  section F from mandatory back into a precaution. Worth doing before the
+  Week 3 rollover.
 - **Production deploys stay manual**, so a future plugin change needs a
   deliberate "Deploy now". That is the plan's decision and holds at least
   through Week 2.

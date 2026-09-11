@@ -7,8 +7,11 @@ on:
     # writer's screen. GitHub may delay scheduled runs under load; the pipeline
     # is idempotent, so a missed hour costs nothing but freshness.
     #
-    # Scheduled runs always target STAGING. Production is opt-in via
-    # workflow_dispatch until launch.
+    # Where scheduled runs write is the repo variable SCHEDULED_TARGET,
+    # not this file. The rollback during a live week has to be a dropdown
+    # rather than a commit, because a push to main also redeploys the plugin
+    # -- so "stop the cron" and "ship code" must not share a trigger. Unset,
+    # it falls back to staging. Every run echoes the target it resolved.
     - cron: "0 * * * 0,2,3,4,5,6"
 
   workflow_dispatch:
@@ -34,13 +37,16 @@ on:
         description: Odds source
         type: choice
         options: [replay, live, nflverse, record]
-        default: replay
+        default: nflverse
 
 concurrency:
   # Never let two builds race each other into the same week's rows. Keyed by
-  # environment so a manual production run cannot be cancelled by the staging
-  # cron, or vice versa.
-  group: build-week-${{ inputs.environment || 'staging' }}
+  # environment so a manual staging run and the production cron are mutually
+  # exclusive per site rather than globally. This expression must stay
+  # byte-identical to the job's `environment:` and to TARGET below: if the
+  # group says staging while the job says production, two builds interleave
+  # writes into one week's rows. test_workflow_targets.py pins all four.
+  group: build-week-${{ inputs.environment || vars.SCHEDULED_TARGET || 'staging' }}
   cancel-in-progress: false
 
 jobs:
@@ -60,7 +66,7 @@ jobs:
     # Selects which WP_SITE_URL and TRINITY_RUNDOWN_TOKEN the job can see.
     # Each site has its own token, so a mistyped URL cannot write to the
     # wrong database -- the token would simply be rejected.
-    environment: ${{ inputs.environment || 'staging' }}
+    environment: ${{ inputs.environment || vars.SCHEDULED_TARGET || 'staging' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -96,7 +102,7 @@ jobs:
           ODDS_BOOK: ${{ vars.ODDS_BOOK || 'draftkings' }}
           SEASON: ${{ inputs.season || '2026' }}
           WEEK: ${{ inputs.week || 'auto' }}
-          TARGET: ${{ inputs.environment || 'staging' }}
+          TARGET: ${{ inputs.environment || vars.SCHEDULED_TARGET || 'staging' }}
           ODDS_MODE: ${{ inputs.odds || '' }}
           DO_PUSH: ${{ inputs.push }}
         run: |
@@ -111,11 +117,13 @@ jobs:
             ARGS+=(--push)
           fi
 
-          # Staging replays a committed fixture: no credits, and identical
-          # numbers between runs so a diff means a real change.
+          # Production takes live odds; anything else degrades to free
+          # nflverse lines. Not `replay` -- that resolves a fixture path from
+          # season and week, so it would start failing the hour a new week
+          # opened. Replaying a recorded week is a deliberate dispatch now.
           MODE="$ODDS_MODE"
           if [ -z "$MODE" ]; then
-            if [ "$TARGET" = "production" ]; then MODE=live; else MODE=replay; fi
+            if [ "$TARGET" = "production" ]; then MODE=live; else MODE=nflverse; fi
           fi
 
           # `record` fetches live *and* writes the raw responses to
@@ -149,7 +157,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: payload-${{ inputs.environment || 'staging' }}
+          name: payload-${{ inputs.environment || vars.SCHEDULED_TARGET || 'staging' }}
           path: build/*.json
           if-no-files-found: ignore
           retention-days: 14
