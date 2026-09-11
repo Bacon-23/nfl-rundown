@@ -1,9 +1,21 @@
 # Phase 5: the production cutover
 
-Status: executed through step 11 on 2026-09-11. The cron handover (step 12)
-and section F remain. Written 2026-09-08, the day before Week 1 kickoff, and
-corrected in place as it was executed -- each dated note below marks somewhere
-the document was wrong when it met the live system.
+Status: **executed through step 14 on 2026-09-11.** Production's cron owns the
+pipeline and writes live DraftKings lines hourly; staging's rows stopped at
+02:40:13 UTC that morning and the handover moved the cron rather than adding a
+second one. Step 15 is optional and has not been tried.
+
+**Section F is outstanding, and it is not optional.** The Week 2 opener must be
+taken by hand: set `SCHEDULED_TARGET` back to `staging` on Monday 2026-09-14,
+which is a measured 27-hour window with no scheduled runs, and in any case
+before roughly **02:45 UTC Tuesday 2026-09-15** -- 21:45 Monday US Central,
+which is the same moment stated in the timezone most likely to mislead. After
+that hour, sixteen `opening_line` values are frozen unattended and there is no
+repair path.
+
+Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
+was executed -- each dated note below marks somewhere the document was wrong
+when it met the live system.
 
 ## What is already true
 
