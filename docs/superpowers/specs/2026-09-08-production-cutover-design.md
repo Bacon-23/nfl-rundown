@@ -5,13 +5,11 @@ pipeline and writes live DraftKings lines hourly; staging's rows stopped at
 02:40:13 UTC that morning and the handover moved the cron rather than adding a
 second one. Step 15 is optional and has not been tried.
 
-**Section F is outstanding, and it is not optional.** The Week 2 opener must be
-taken by hand: set `SCHEDULED_TARGET` back to `staging` on Monday 2026-09-14,
-which is a measured 27-hour window with no scheduled runs, and in any case
-before roughly **02:45 UTC Tuesday 2026-09-15** -- 21:45 Monday US Central,
-which is the same moment stated in the timezone most likely to mislead. After
-that hour, sixteen `opening_line` values are frozen unattended and there is no
-repair path.
+**Section F step 16 done at 22:54:43 UTC Monday 2026-09-14**, by setting
+`CRON_ENABLED=false` (not `SCHEDULED_TARGET=staging` -- see the note under step
+16). No scheduled build runs anywhere until step 19 turns it back on. Steps 17
+through 19 are due Tuesday 2026-09-15: take the Week 2 opener by hand, then
+restore `CRON_ENABLED=true`. `SCHEDULED_TARGET` still reads `production`.
 
 Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
 was executed -- each dated note below marks somewhere the document was wrong
@@ -313,6 +311,20 @@ nothing about whether the *number* frozen that night is any good.
     because nothing appears to be happening; that is precisely the window.
     Do it early: the window closes at about 02:45 Tuesday UTC, not 05:00.
 
+    *Corrected 2026-09-14, during execution: 02:45 is when the first Tuesday
+    run has tended to arrive, not a bound on it. The cron allows a run from
+    00:00 UTC Tuesday, and `--week auto` resolves to "the week holding the next
+    kickoff", so it rolls to Week 2 once the Monday-nighter kicks off (about
+    00:15 UTC). Treat that as the deadline: 19:15 Monday US Central.*
+
+    *Executed with `CRON_ENABLED=false` rather than `SCHEDULED_TARGET=staging`.
+    Pointing the cron at staging would freeze nflverse openers into staging's
+    Week 2 rows, run staging's health probe every hour, and contradict
+    "staging is on-demand only". The master switch writes nothing anywhere.
+    It means step 19 has to restore `CRON_ENABLED=true`. Setting the target
+    alone would change nothing. Scheduled runs GitHub fires meanwhile show as
+    `skipped`, which is the evidence the gate held.*
+
 17. **Tuesday, at a waking hour:** dispatch `environment=production,
     week=2, odds=live, push=false`. Read the payload artifact and check
     `odds_source`. If it is `nflverse_fallback`, the book has not posted or
@@ -332,7 +344,8 @@ nothing about whether the *number* frozen that night is any good.
     with `push=true`. That write sets the opener for all 16 games,
     permanently. Confirm with `wp rundown status --season=2026 --week=2`.
 
-19. Set `SCHEDULED_TARGET=production` again and confirm the next scheduled run
+19. Undo whichever switch step 16 used -- `SCHEDULED_TARGET=production`, or
+    `CRON_ENABLED=true` (the one used for Week 2) -- and confirm the next scheduled run
     reads `Target: production | odds: live`. Everything from here is
     idempotent, and the hourly cadence can be left alone.
 
