@@ -5,13 +5,28 @@ pipeline and writes live DraftKings lines hourly; staging's rows stopped at
 02:40:13 UTC that morning and the handover moved the cron rather than adding a
 second one. Step 15 is optional and has not been tried.
 
-**Section F is outstanding, and it is not optional.** The Week 2 opener must be
-taken by hand: set `SCHEDULED_TARGET` back to `staging` on Monday 2026-09-14,
-which is a measured 27-hour window with no scheduled runs, and in any case
-before roughly **02:45 UTC Tuesday 2026-09-15** -- 21:45 Monday US Central,
-which is the same moment stated in the timezone most likely to mislead. After
-that hour, sixteen `opening_line` values are frozen unattended and there is no
-repair path.
+**Section F executed for Week 2.** Step 16 set `CRON_ENABLED=false` at
+22:54:43 UTC Monday 2026-09-14 (not `SCHEDULED_TARGET=staging` -- see the note
+under step 16). GitHub fired two scheduled runs while the switch was off, at
+03:04 and 09:08 UTC Tuesday, and both show as `skipped`.
+
+- **Step 17**, run 34973868500 at 13:16 UTC Tuesday 2026-09-15: a dry run. All
+  sixteen games in the payload read `odds.source: odds_api` and
+  `book: draftkings`, with no null prices. The standouts (SF -12.5, and road
+  favourites CAR -1.5 and SEA -4.5) were checked against the book by hand
+  before pushing.
+- **Step 18**, run 34974204713 at 13:19 UTC: pushed.
+  `16 inserted, 0 updated, 16 openers recorded`. Zero updates means production
+  had no Week 2 rows beforehand, so nothing wrote an opener unattended. The
+  pushed payload's odds match the dry run's on all sixteen games, so the
+  frozen openers are the lines that were reviewed.
+- **Step 19**: `CRON_ENABLED=true` restored at 13:20:10 UTC.
+  `SCHEDULED_TARGET` was never changed and still reads `production`. The first
+  scheduled run afterwards, 34982732645 at 14:36 UTC, read
+  `Target: production | odds: live` and reported
+  `0 inserted, 16 updated, 0 openers recorded`. Zero openers means the
+  write-once guard held against the first unattended build to meet the
+  hand-taken lines.
 
 Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
 was executed -- each dated note below marks somewhere the document was wrong
@@ -313,6 +328,20 @@ nothing about whether the *number* frozen that night is any good.
     because nothing appears to be happening; that is precisely the window.
     Do it early: the window closes at about 02:45 Tuesday UTC, not 05:00.
 
+    *Corrected 2026-09-14, during execution: 02:45 is when the first Tuesday
+    run has tended to arrive, not a bound on it. The cron allows a run from
+    00:00 UTC Tuesday, and `--week auto` resolves to "the week holding the next
+    kickoff", so it rolls to Week 2 once the Monday-nighter kicks off (about
+    00:15 UTC). Treat that as the deadline: 19:15 Monday US Central.*
+
+    *Executed with `CRON_ENABLED=false` rather than `SCHEDULED_TARGET=staging`.
+    Pointing the cron at staging would freeze nflverse openers into staging's
+    Week 2 rows, run staging's health probe every hour, and contradict
+    "staging is on-demand only". The master switch writes nothing anywhere.
+    It means step 19 has to restore `CRON_ENABLED=true`. Setting the target
+    alone would change nothing. Scheduled runs GitHub fires meanwhile show as
+    `skipped`, which is the evidence the gate held.*
+
 17. **Tuesday, at a waking hour:** dispatch `environment=production,
     week=2, odds=live, push=false`. Read the payload artifact and check
     `odds_source`. If it is `nflverse_fallback`, the book has not posted or
@@ -332,7 +361,8 @@ nothing about whether the *number* frozen that night is any good.
     with `push=true`. That write sets the opener for all 16 games,
     permanently. Confirm with `wp rundown status --season=2026 --week=2`.
 
-19. Set `SCHEDULED_TARGET=production` again and confirm the next scheduled run
+19. Undo whichever switch step 16 used -- `SCHEDULED_TARGET=production`, or
+    `CRON_ENABLED=true` (the one used for Week 2) -- and confirm the next scheduled run
     reads `Target: production | odds: live`. Everything from here is
     idempotent, and the hourly cadence can be left alone.
 
