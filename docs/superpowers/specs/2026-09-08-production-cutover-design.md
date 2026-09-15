@@ -28,6 +28,11 @@ under step 16). GitHub fired two scheduled runs while the switch was off, at
   write-once guard held against the first unattended build to meet the
   hand-taken lines.
 
+**Section F is optional from Week 3 on** (decided 2026-09-15, once
+`wp rundown reopen` was deployed to production and smoke-tested). If steps
+16-19 are skipped, the Tuesday check that replaces them (F1-F3) is still
+required.
+
 Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
 was executed -- each dated note below marks somewhere the document was wrong
 when it met the live system.
@@ -286,10 +291,16 @@ Ordered so every irreversible step follows the thing that proves it safe.
     exercises the freeze on the live database rather than trusting that
     staging's rehearsal transfers.
 
-### F. Take the opener by hand -- Monday, then Tuesday
+### F. Take the opener by hand -- optional from Week 3
 
-This section is not optional. Steps 1-14 are all reversible; this one covers
-the single write in the system that is not.
+**Optional from Week 3 on, decided 2026-09-15.** Steps 16-19 prevent a bad
+opener. `wp rundown reopen` repairs one. Either is acceptable; neither is not.
+If steps 16-19 are skipped, the Tuesday check after step 19 (F1-F3) is
+required, because a build that freezes fallback openers still reports success
+and nothing alerts on it.
+
+*Until then this section was mandatory. Steps 1-14 are all reversible, and this
+one covered the single write in the system that was not.*
 
 The rest of this runbook is ordered so that every irreversible step follows the
 thing that proves it safe. That principle was never applied to the irreversible
@@ -319,10 +330,11 @@ is no repair path: `--backfill-open` was documented but never built, and
 `TRUN_Storage::force_opening_line()` has no callers.
 
 *Superseded 2026-09-15: `wp rundown reopen` now reaches
-`force_opening_line()`, and it arrives on production with the next manual
-deploy. A frozen fallback opener can be replaced with a book line from a later
-payload. That line is still later than the true opener, so this hour remains
-worth being awake for.*
+`force_opening_line()`. It was deployed to production and smoke-tested the same
+day, reporting `0 forced, 0 skipped, 16 unchanged` against Week 2's pushed
+lines. A frozen fallback opener can be replaced with a book line from a later
+payload. That line is still later than the true opener, so this hour is worth
+covering one way or the other.*
 
 The live-fire runs from step 12 onward de-risk the *machinery*. They say
 nothing about whether the *number* frozen that night is any good.
@@ -330,8 +342,9 @@ nothing about whether the *number* frozen that night is any good.
 16. **Monday (UTC), any time:** set `SCHEDULED_TARGET` back to `staging`, or
     unset `CRON_ENABLED`. Free of consequence -- the cron excludes Monday
     (`0 * * * 0,2,3,4,5,6`), so there is a natural gap of more than 24 hours
-    (27.3 measured) with no scheduled runs to interrupt. Do not skip this
-    because nothing appears to be happening; that is precisely the window.
+    (27.3 measured) with no scheduled runs to interrupt. Once you're taking this
+    route, do not put this off because nothing appears to be happening; that is
+    precisely the window.
     Do it early: the window closes at about 02:45 Tuesday UTC, not 05:00.
 
     *Corrected 2026-09-14, during execution: 02:45 is when the first Tuesday
@@ -349,7 +362,7 @@ nothing about whether the *number* frozen that night is any good.
     `skipped`, which is the evidence the gate held.*
 
 17. **Tuesday, at a waking hour:** dispatch `environment=production,
-    week=2, odds=live, push=false`. Read the payload artifact and check
+    week=<N>, odds=live, push=false`. Read the payload artifact and check
     `odds_source`. If it is `nflverse_fallback`, the book has not posted or
     the API is unwell -- wait and dispatch again rather than pushing.
 
@@ -365,23 +378,51 @@ nothing about whether the *number* frozen that night is any good.
 
 18. When `odds_source` names the book and the lines look sane, dispatch again
     with `push=true`. That write sets the opener for all 16 games,
-    permanently. Confirm with `wp rundown status --season=2026 --week=2`.
+    permanently. Confirm with `wp rundown status --season=2026 --week=<N>`.
 
 19. Undo whichever switch step 16 used -- `SCHEDULED_TARGET=production`, or
     `CRON_ENABLED=true` (the one used for Week 2) -- and confirm the next scheduled run
     reads `Target: production | odds: live`. Everything from here is
     idempotent, and the hourly cadence can be left alone.
 
-The same four steps apply to every subsequent week until a repair path exists.
-Once `force_opening_line()` is reachable from the CLI, a bad opener stops being
-permanent and this section can go back to being optional.
+The same four steps work for any week, and taking them is still the better
+outcome: a repair restores the book's line as of the repair, not the line the
+week opened on.
 
-*2026-09-15: that CLI path is `wp rundown reopen`, built after Week 2 was
-taken. It counts only once it is deployed to production, which is a manual
-"Deploy now". Until then, Week 3 needs these steps exactly as written. Once it
-is deployed, whether to keep section F mandatory is a judgment call rather than
-a necessity. Skipping it means a missed opener gets repaired with a later line,
-not prevented.*
+#### If steps 16-19 are skipped: check on Tuesday, repair if needed
+
+Left running through Monday, the cron's first build of the new week sets the
+openers unattended. Check them on Tuesday UTC. The deadline is the week's first
+kickoff, usually Thursday night: the book delists a game once it has been
+played (see the note under step 17), after which its line cannot be fetched
+to repair from.
+
+F1. Find that build. It is the first `schedule` run of Tuesday UTC whose log
+    reads `N openers recorded` with N above zero. Download its
+    `payload-production` artifact and read `odds.source` for **every game** in
+    the payload, not the log's summary line. If all of them read `odds_api`,
+    the openers are the book's and the check is done.
+
+F2. For any game that does not, dispatch `environment=production, week=<N>,
+    odds=live, push=false` and confirm those games now read `odds_api` in the
+    new payload. If they still do not, the book has not posted them; wait and
+    dispatch again.
+
+F3. Put a payload holding **only the games being repaired** on the server, and
+    run `wp rundown reopen --file=<that file>` without `--yes`. Read each
+    `old -> new` line before answering `y`. Do not point it at the full
+    payload. `reopen` treats any book line that differs from the stored one as
+    a correction, so good openers would be replaced with later lines too.
+    `--game=<id>` narrows the command to one game when trimming the file is
+    awkward. Running the same command again should report every game
+    `unchanged`.
+
+    Getting the file there: `reopen` reads only `season`, `week`, and for each
+    game `game_id`, `odds.source`, `odds.spread`, `odds.spread_favorite`, and
+    `odds.total`. A file cut down to those is small enough to paste into the SSH
+    session with a heredoc, which is how the smoke test was run. Use SFTP from
+    a local terminal for anything larger. `sftp` started inside the SSH
+    session runs on the server and cannot see local files.
 
 Week 2 additionally needs the writer to create the live post carrying the
 `[rundown_week]` shortcode. A **post**, not a page: categories and
@@ -445,7 +486,7 @@ remaining.
 | Bad plugin on production | Re-deploy an earlier commit. Deploys merge rather than replace, so files that must disappear need the directory deleted on the server first | Manual, minutes |
 | Wrong stats in a row | Re-run; the build is idempotent and `stats_json` is pipeline-owned | Automatic |
 | Editorial clobbered | Cannot happen by design -- separate columns, proven over three pushes in the rehearsal | -- |
-| Bad `opening_line` | `wp rundown reopen --file=<payload>` forces book lines over it, `opening_line` only. The repaired value is the line when that payload was built, not the true opener, so prevention (section F) still beats repair. *Was "no clean path" until 2026-09-15* | Manual, one command |
+| Bad `opening_line` | `wp rundown reopen --file=<payload>` forces book lines over it, `opening_line` only -- see F1-F3. The repaired value is the line when that payload was built, not the true opener, so prevention (steps 16-19) still beats repair. *Was "no clean path" until 2026-09-15* | Manual, one command |
 
 The last row is the one to keep in view. It is the only state in this system a
 re-run cannot repair, and left alone the cutover schedules production's
@@ -456,9 +497,9 @@ first-ever Week 2 build to be the one that sets it, unattended, at roughly
 it did.** Running the hourly path dozens of times before Tuesday proves the
 machinery works; it says nothing about whether the number frozen that night is
 a good one, because the failure mode here is a build that succeeds while
-quietly using fallback lines. Section F is the actual mitigation: take the
-first write of each week by hand, look at `odds_source`, and push only when it
-names the book. Live-fire is still worth having -- it is what makes the rest of
+quietly using fallback lines. Section F is the actual mitigation: either take
+the first write of each week by hand and push only when every game names the
+book, or check that write on Tuesday and repair the games that do not. Live-fire is still worth having -- it is what makes the rest of
 the runbook's reversible steps boring -- but it is not what protects the
 opener.
 
@@ -472,8 +513,11 @@ opener.
   Revisit after Week 2.
 
   The one unattended hour that cannot be shrugged off is the one that sets
-  `opening_line`, because that write is permanent. Section F takes it out of
-  the unattended set by hand; everything else degrades recoverably.
+  `opening_line`, because a missed opener cannot be recovered, only replaced
+  with a later line. Section F covers it in one of two ways: steps 16-19 take
+  it out of the unattended set, or F1-F3 check it the next day. Neither is
+  alerted, so skipping both leaves a fallback opener in place without anyone
+  knowing. Everything else degrades recoverably.
 - **A repaired opener is a later line, not the opening one.**
   `--backfill-open` was promised by `plan.md` and `metrics.md` and never
   built. `wp rundown reopen` replaced it on 2026-09-15, wired to
