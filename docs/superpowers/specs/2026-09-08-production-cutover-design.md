@@ -318,6 +318,12 @@ human appears in the admin screen, which nobody is reading at 02:45 UTC. There
 is no repair path: `--backfill-open` was documented but never built, and
 `TRUN_Storage::force_opening_line()` has no callers.
 
+*Superseded 2026-09-15: `wp rundown reopen` now reaches
+`force_opening_line()`, and it arrives on production with the next manual
+deploy. A frozen fallback opener can be replaced with a book line from a later
+payload. That line is still later than the true opener, so this hour remains
+worth being awake for.*
+
 The live-fire runs from step 12 onward de-risk the *machinery*. They say
 nothing about whether the *number* frozen that night is any good.
 
@@ -369,6 +375,13 @@ nothing about whether the *number* frozen that night is any good.
 The same four steps apply to every subsequent week until a repair path exists.
 Once `force_opening_line()` is reachable from the CLI, a bad opener stops being
 permanent and this section can go back to being optional.
+
+*2026-09-15: that CLI path is `wp rundown reopen`, built after Week 2 was
+taken. It counts only once it is deployed to production, which is a manual
+"Deploy now". Until then, Week 3 needs these steps exactly as written. Once it
+is deployed, whether to keep section F mandatory is a judgment call rather than
+a necessity. Skipping it means a missed opener gets repaired with a later line,
+not prevented.*
 
 Week 2 additionally needs the writer to create the live post carrying the
 `[rundown_week]` shortcode. A **post**, not a page: categories and
@@ -432,7 +445,7 @@ remaining.
 | Bad plugin on production | Re-deploy an earlier commit. Deploys merge rather than replace, so files that must disappear need the directory deleted on the server first | Manual, minutes |
 | Wrong stats in a row | Re-run; the build is idempotent and `stats_json` is pipeline-owned | Automatic |
 | Editorial clobbered | Cannot happen by design -- separate columns, proven over three pushes in the rehearsal | -- |
-| Bad `opening_line` | **No clean path.** Write-once at the DB layer; a wrong opener needs a direct row edit. Prevented, not recovered -- see section F | Manual DB surgery |
+| Bad `opening_line` | `wp rundown reopen --file=<payload>` forces book lines over it, `opening_line` only. The repaired value is the line when that payload was built, not the true opener, so prevention (section F) still beats repair. *Was "no clean path" until 2026-09-15* | Manual, one command |
 
 The last row is the one to keep in view. It is the only state in this system a
 re-run cannot repair, and left alone the cutover schedules production's
@@ -461,13 +474,15 @@ opener.
   The one unattended hour that cannot be shrugged off is the one that sets
   `opening_line`, because that write is permanent. Section F takes it out of
   the unattended set by hand; everything else degrades recoverably.
-- **No repair path for a wrong opener.** `--backfill-open` was promised by
-  `plan.md` and `metrics.md` and never built; both were corrected on
-  2026-09-10 to stop describing a fix that does not exist.
-  `TRUN_Storage::force_opening_line()` is written and has no callers. Wiring
-  it to a WP-CLI flag is small -- the hard part is done -- and would turn
-  section F from mandatory back into a precaution. Worth doing before the
-  Week 3 rollover.
+- **A repaired opener is a later line, not the opening one.**
+  `--backfill-open` was promised by `plan.md` and `metrics.md` and never
+  built. `wp rundown reopen` replaced it on 2026-09-15, wired to
+  `TRUN_Storage::force_opening_line()`. It restores a book line, but only the
+  line as of the payload used for the repair. Nothing records the true opener
+  once it is missed, short of the historical-odds endpoint at ten times the
+  credit cost. `wp rundown status` also shows only whether an opener exists,
+  not where it came from, so finding a bad one still means reading the first
+  build's payload artifact.
 - **Production deploys stay manual**, so a future plugin change needs a
   deliberate "Deploy now". That is the plan's decision and holds at least
   through Week 2.

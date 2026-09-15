@@ -199,9 +199,9 @@ Rather than calling the historical endpoint, the pipeline **records the first od
 
 The opener is set by the **first scheduled run after `--week auto` rolls over**, which is four hours past the previous week's last kickoff — for Week 2 of 2026, 05:00 UTC Tuesday. Not the 12:00 UTC run; that is the team-totals probe hour, which is unrelated.
 
-> **There is no repair path.** Earlier drafts of this document promised `build_week.py --backfill-open`, and it was never built — in neither the pipeline nor the CLI. `TRUN_Storage::force_opening_line()` exists in the plugin and has no callers. A wrong opener today needs a direct row edit.
+> **The repair path is `wp rundown reopen`, run by hand.** Earlier drafts of this document promised `build_week.py --backfill-open`, which was never built. The WP-CLI command that replaced it (2026-09-15) forces openers from a payload file through `TRUN_Storage::force_opening_line()`, accepting book lines only. The repaired opener is the line when that payload was built, not the true opener.
 >
-> This matters because the opener is written unattended by default, and a build that degrades to nflverse fallback lines still reports success. Until a repair path exists, take manual control of the first build of a week: dispatch with `push=false`, confirm `odds_source` is the book rather than `nflverse_fallback`, then push.
+> The opener is still written unattended by default, and a build that degrades to nflverse fallback lines still reports success. Taking manual control of the first build of a week is still the better outcome: dispatch with `push=false`, confirm `odds_source` is the book rather than `nflverse_fallback`, then push. `reopen` is for when that was missed.
 
 Rendering: `SEA -4.5 (opened -3.5)`. The parenthetical is suppressed when the line hasn't moved.
 

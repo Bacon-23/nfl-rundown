@@ -280,7 +280,21 @@ wp rundown seed --file=build/2026-week-01.json   # load a payload with no pipeli
 wp rundown status --season=2026 --week=1         # what is stored, locked, noted
 wp rundown publish --season=2026 --week=1        # freeze the numbers
 wp rundown unlock --season=2026 --week=1         # let refreshes through again
+wp rundown reopen --file=2026-week-02.json       # overwrite wrong openers from a payload
 ```
+
+`reopen` is the repair path for a wrong opener, the one value the pipeline will
+not rewrite. Give it a payload with book lines in it: the `payload-production`
+artifact from a dry-run dispatch is the natural source, copied to the server
+over SFTP first. It writes `opening_line` and nothing else. It skips any game
+whose odds in the file are not `odds_api`. It prints each old -> new change
+and asks before writing (`--yes` skips the prompt), and `--game=<id>` narrows
+it to one game.
+
+The repaired opener is the book's line *when that payload was built*, and its
+`captured_at` says so. That is not the true opening line, which is gone once
+missed, but it is far closer than a fallback line. On a published week, readers
+see the frozen snapshot until the week is unlocked and published again.
 
 ## The writer's screen
 
