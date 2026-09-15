@@ -5,11 +5,25 @@ pipeline and writes live DraftKings lines hourly; staging's rows stopped at
 02:40:13 UTC that morning and the handover moved the cron rather than adding a
 second one. Step 15 is optional and has not been tried.
 
-**Section F step 16 done at 22:54:43 UTC Monday 2026-09-14**, by setting
-`CRON_ENABLED=false` (not `SCHEDULED_TARGET=staging` -- see the note under step
-16). No scheduled build runs anywhere until step 19 turns it back on. Steps 17
-through 19 are due Tuesday 2026-09-15: take the Week 2 opener by hand, then
-restore `CRON_ENABLED=true`. `SCHEDULED_TARGET` still reads `production`.
+**Section F executed for Week 2.** Step 16 set `CRON_ENABLED=false` at
+22:54:43 UTC Monday 2026-09-14 (not `SCHEDULED_TARGET=staging` -- see the note
+under step 16). GitHub fired two scheduled runs while the switch was off, at
+03:04 and 09:08 UTC Tuesday, and both show as `skipped`.
+
+- **Step 17**, run 34973868500 at 13:16 UTC Tuesday 2026-09-15: a dry run. All
+  sixteen games in the payload read `odds.source: odds_api` and
+  `book: draftkings`, with no null prices. The standouts (SF -12.5, and road
+  favourites CAR -1.5 and SEA -4.5) were checked against the book by hand
+  before pushing.
+- **Step 18**, run 34974204713 at 13:19 UTC: pushed.
+  `16 inserted, 0 updated, 16 openers recorded`. Zero updates means production
+  had no Week 2 rows beforehand, so nothing wrote an opener unattended. The
+  pushed payload's odds match the dry run's on all sixteen games, so the
+  frozen openers are the lines that were reviewed.
+- **Step 19**: `CRON_ENABLED=true` restored at 13:20:10 UTC.
+  `SCHEDULED_TARGET` was never changed and still reads `production`. Not yet
+  confirmed: that the first scheduled run afterwards reads
+  `Target: production | odds: live`.
 
 Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
 was executed -- each dated note below marks somewhere the document was wrong
