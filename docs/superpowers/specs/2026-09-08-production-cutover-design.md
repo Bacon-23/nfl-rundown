@@ -21,9 +21,12 @@ under step 16). GitHub fired two scheduled runs while the switch was off, at
   pushed payload's odds match the dry run's on all sixteen games, so the
   frozen openers are the lines that were reviewed.
 - **Step 19**: `CRON_ENABLED=true` restored at 13:20:10 UTC.
-  `SCHEDULED_TARGET` was never changed and still reads `production`. Not yet
-  confirmed: that the first scheduled run afterwards reads
-  `Target: production | odds: live`.
+  `SCHEDULED_TARGET` was never changed and still reads `production`. The first
+  scheduled run afterwards, 34982732645 at 14:36 UTC, read
+  `Target: production | odds: live` and reported
+  `0 inserted, 16 updated, 0 openers recorded`. Zero openers means the
+  write-once guard held against the first unattended build to meet the
+  hand-taken lines.
 
 Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
 was executed -- each dated note below marks somewhere the document was wrong
