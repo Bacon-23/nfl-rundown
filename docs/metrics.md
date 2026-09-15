@@ -45,14 +45,16 @@ concurrent runs cannot race each other into overwriting it.
 
 Displayed only when the line has actually moved: `SEA -4.5 (opened -3.5)`.
 
-**There is no repair path for a wrong opener.** `--backfill-open` is described
-in older drafts of `plan.md` but was never implemented, and the plugin's
-`TRUN_Storage::force_opening_line()` has no callers. Correcting an opener means
-editing the row directly.
+**A wrong opener is repaired by hand, with `wp rundown reopen`.** It forces
+openers from a payload file, taking book lines only, and writes nothing but
+`opening_line`. The repaired value is the book's line when that payload was
+built, not the true opener. (`--backfill-open`, described in older drafts of
+`plan.md`, was never built; this replaces it.)
 
-So the first build of a week is the one worth watching: it is the only write in
-this system a re-run cannot repair, and a build that quietly falls back to
-nflverse lines still reports success.
+So the first build of a week is still the one worth watching. A re-run cannot
+repair its write, and a build that quietly falls back to nflverse lines still
+reports success. What changes is that missing it now costs a later line rather
+than a permanent fallback one.
 
 ### Total
 

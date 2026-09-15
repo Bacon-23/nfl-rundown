@@ -231,14 +231,15 @@ class TRUN_Storage {
 	/**
 	 * Force-overwrite an opener, bypassing the write-once guard.
 	 *
-	 * NOTE: nothing calls this. It was written for a `--backfill-open` repair
-	 * path that `plan.md` once promised and that was never built, so a wrong
-	 * opener currently needs a direct row edit. Wiring this to a CLI flag is
-	 * the cheap version of that repair path -- the hard part is already here.
+	 * The repair path for a wrong opener, reached through `wp rundown reopen`.
+	 * Nothing on the ingest side calls it.
+	 *
+	 * Returns true only when a row was written. False covers both a database
+	 * error and a game with no stored row, which the caller checks for first.
 	 */
-	public static function force_opening_line( int $season, int $week, string $game_id, array $line ): void {
+	public static function force_opening_line( int $season, int $week, string $game_id, array $line ): bool {
 		global $wpdb;
-		$wpdb->update(
+		$rows = $wpdb->update(
 			self::table(),
 			[ 'opening_line' => wp_json_encode( $line ) ],
 			[
@@ -249,6 +250,8 @@ class TRUN_Storage {
 			[ '%s' ],
 			[ '%d', '%d', '%s' ]
 		);
+
+		return is_int( $rows ) && $rows > 0;
 	}
 
 	public static function save_editorial( int $season, int $week, string $game_id, ?array $notes, ?array $overrides ): void {
