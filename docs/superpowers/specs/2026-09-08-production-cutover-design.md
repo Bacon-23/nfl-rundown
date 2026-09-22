@@ -52,9 +52,12 @@ and 13:50 UTC Tuesday, and all three show as `skipped`.
   -3.0. The stored opener is the pushed 43.5. That gap is worth keeping short.
   The dry run proves the source, but the opener is whatever the push sees.
 - **Step 19**: `CRON_ENABLED=true` restored at 15:31:02 UTC.
-  `SCHEDULED_TARGET` was never changed and still reads `production`. Not yet
-  confirmed: that the first scheduled run afterwards reads
-  `Target: production | odds: live` with `0 openers recorded`.
+  `SCHEDULED_TARGET` was never changed and still reads `production`. The first
+  scheduled run afterwards, 35763510684 at 17:53 UTC, read
+  `Target: production | odds: live`, auto-detected week 3, and reported
+  `0 inserted, 16 updated, 0 openers recorded`. The write-once guard held
+  against the first unattended build to meet the hand-taken lines, as it did
+  for Week 2.
 
 Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
 was executed -- each dated note below marks somewhere the document was wrong
