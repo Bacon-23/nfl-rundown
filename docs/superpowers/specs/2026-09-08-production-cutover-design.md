@@ -457,6 +457,17 @@ posts, and a page can be gated only by core's Private/Password visibility,
 which is not the mechanism this site uses. Week 1 landed as a page, so this is
 a correction of what happened rather than a restatement.
 
+*Corrected 2026-09-22: that post is created once, not weekly.* Week 2's post
+is the only one, and every week after it is published by editing `week=` in
+its shortcode. So the gating above is a Week 2 problem that does not recur --
+access is set on a post that already exists. What recurs instead is the cache:
+the URL never changes, so after the shortcode is edited a cached copy still
+holds the previous week's tables. The consequence for this runbook is that
+"the new post for week N" is not a thing to look for in any later week, and
+that only the week the shortcode names is reachable at all -- earlier weeks
+remain in `wp_trinity_rundown_games`, reachable by pointing the shortcode back
+at them, but they have no URL of their own.
+
 Gating also changes how the result can be checked. Every reader-facing
 verification so far has fetched the URL anonymously with a cache-buster -- that
 is how published-vs-live-data was settled during the staging rehearsal. Against
