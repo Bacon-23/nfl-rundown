@@ -273,6 +273,14 @@ launch with its own token.
 
 6. Put `[rundown_week season="2026" week="1"]` in the weekly post.
 
+   **There is one reader-facing post, and it is reused.** Moving the site to a
+   new week means editing `week=` on that post, not publishing another one --
+   so the Paywall block and the subscriber access level are set once and carry
+   over. Purge the cache afterwards: the URL does not change, so a cached copy
+   serves the previous week's tables to readers who ask for it. Only the week
+   the shortcode names is reachable; earlier weeks stay in the table and come
+   back by pointing the shortcode at them.
+
 ### WP-CLI
 
 ```bash
@@ -319,9 +327,10 @@ save instead of merged into what was stored before.
 touches `stats_json`, so a pipeline run mid-edit cannot eat a paragraph.
 
 **Publish & freeze** copies the merged view into `published_json` and sets
-`locked = 1` -- the same thing `wp rundown publish` does. It does *not* create
-the weekly post: make the post yourself and paste in `[rundown_week]`. The
-plugin has no post-creation powers anywhere, admin screen included.
+`locked = 1` -- the same thing `wp rundown publish` does. It does *not* touch
+the weekly post: that post is maintained by hand, and each week its
+`[rundown_week]` shortcode is edited to the new week number. The plugin has no
+post-editing powers anywhere, admin screen included.
 
 While a week is locked the pipeline keeps updating `stats_json` in the
 background, so the live and published views drift apart silently. The screen
