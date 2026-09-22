@@ -33,6 +33,29 @@ under step 16). GitHub fired two scheduled runs while the switch was off, at
 16-19 are skipped, the Tuesday check that replaces them (F1-F3) is still
 required.
 
+**Section F executed for Week 3**, taking steps 16-19 rather than F1-F3. Step
+16 set `CRON_ENABLED=false` at 23:44:46 UTC Monday 2026-09-21, about half an
+hour before the Monday-nighter's 00:15 kickoff rolled `--week auto` over. The
+last scheduled run before it was at 00:47 UTC that day, still on Week 2.
+GitHub fired three scheduled runs while the switch was off, at 02:59, 08:24
+and 13:50 UTC Tuesday, and all three show as `skipped`.
+
+- **Step 17**, run 35736934563 at 13:57 UTC Tuesday 2026-09-22: a dry run. All
+  sixteen games in the payload read `odds.source: odds_api` and
+  `book: draftkings`, with no null odds fields. Spreads run from MIN -1.5 to
+  KC -11.5 and totals from 40.5 to 52.5.
+- **Step 18**, run 35747812448 at 15:30 UTC: pushed.
+  `16 inserted, 0 updated, 16 openers recorded`, confirmed on the server with
+  `wp rundown status --season=2026 --week=3`. The pushed payload is `odds_api`
+  on all sixteen games. One line moved in the 93 minutes between the two
+  runs: the PHI at CHI total went from 44.5 to 43.5, spread unchanged at PHI
+  -3.0. The stored opener is the pushed 43.5. That gap is worth keeping short.
+  The dry run proves the source, but the opener is whatever the push sees.
+- **Step 19**: `CRON_ENABLED=true` restored at 15:31:02 UTC.
+  `SCHEDULED_TARGET` was never changed and still reads `production`. Not yet
+  confirmed: that the first scheduled run afterwards reads
+  `Target: production | odds: live` with `0 openers recorded`.
+
 Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
 was executed -- each dated note below marks somewhere the document was wrong
 when it met the live system.
