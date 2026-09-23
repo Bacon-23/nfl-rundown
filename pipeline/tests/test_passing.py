@@ -14,7 +14,8 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from pipeline.metrics.passing import receivers, target_rate
+from pipeline.metrics.passing import WeeklyTargets, receivers, target_rate
+from pipeline.schema import ReceiverRow
 
 TOTALS_SCHEMA = {
     "player_id": pl.Utf8,
@@ -291,3 +292,221 @@ class TestOrdering:
 
         assert [row.player for row in receivers(*built)["SEA"]] == ["Alpha", "Zeta"]
         assert [row.player for row in receivers(*built)["SEA"]] == ["Alpha", "Zeta"]
+
+
+# ---------------------------------------------------------------------------
+# Share of team targets, week by week.
+# ---------------------------------------------------------------------------
+
+WEEK_SCHEMA = {
+    "player_id": pl.Utf8,
+    "team": pl.Utf8,
+    "week": pl.Int64,
+    "targets": pl.Int64,
+}
+
+APPEARANCE_SCHEMA = {"player_id": pl.Utf8, "team": pl.Utf8, "week": pl.Int64}
+
+
+def week(player_id, team, wk, targets):
+    return {"player_id": player_id, "team": team, "week": wk, "targets": targets}
+
+
+def team_week(team, wk, targets):
+    """The rest of a team's targets that week, credited to somebody else."""
+    return week(f"rest-{team}-{wk}", team, wk, targets)
+
+
+def weekly(stat_rows, appearances=()):
+    """Box-score rows, plus snap appearances that have no box-score row."""
+    return WeeklyTargets.from_frames(
+        pl.DataFrame(list(stat_rows), schema=WEEK_SCHEMA),
+        pl.DataFrame(
+            [{"player_id": p, "team": t, "week": w} for p, t, w in appearances],
+            schema=APPEARANCE_SCHEMA,
+        ),
+    )
+
+
+class TestRecentWeeks:
+    def test_it_is_the_last_four_weeks_the_team_played_oldest_first(self):
+        built = weekly([team_week("SEA", wk, 30) for wk in range(1, 7)])
+
+        assert built.recent_weeks("SEA") == [3, 4, 5, 6]
+
+    def test_a_bye_is_skipped_rather_than_shown_as_an_empty_column(self):
+        """The columns are games. A bye in week 5 means the fourth-last game
+        was week 3, not an empty week-5 column."""
+        built = weekly([team_week("SEA", wk, 30) for wk in (1, 2, 3, 4, 6, 7)])
+
+        assert built.recent_weeks("SEA") == [3, 4, 6, 7]
+
+    def test_early_in_the_season_there_are_fewer_columns(self):
+        built = weekly([team_week("SEA", 1, 30), team_week("SEA", 2, 30)])
+
+        assert built.recent_weeks("SEA") == [1, 2]
+
+    def test_a_team_with_no_games_gets_no_columns(self):
+        assert weekly([team_week("SEA", 1, 30)]).recent_weeks("NE") == []
+
+
+class TestWeeklyShares:
+    def test_a_cell_is_his_targets_over_his_teams_targets_that_week(self):
+        built = weekly([week("p1", "SEA", 1, 6), team_week("SEA", 1, 24)])
+
+        cells, _ = built.shares("p1", [1])
+
+        assert cells == [pytest.approx(0.20)]
+
+    def test_a_week_he_did_not_play_is_none_not_zero(self):
+        built = weekly(
+            [week("p1", "SEA", 1, 6), team_week("SEA", 1, 24), team_week("SEA", 2, 30)]
+        )
+
+        cells, _ = built.shares("p1", [1, 2])
+
+        assert cells[1] is None
+
+    def test_a_snap_without_a_box_score_row_is_zero_not_none(self):
+        """nflverse writes no row for a tight end who blocked all afternoon.
+        He played, and his share was nothing: that is 0%, not a dash."""
+        built = weekly([team_week("SEA", 1, 30)], appearances=[("p1", "SEA", 1)])
+
+        cells, l4 = built.shares("p1", [1])
+
+        assert cells == [0.0]
+        assert l4 == 0.0
+
+    def test_a_traded_player_is_measured_against_the_team_he_played_for(self):
+        built = weekly(
+            [
+                week("p1", "NYJ", 1, 10),
+                team_week("NYJ", 1, 30),
+                week("p1", "SEA", 2, 5),
+                team_week("SEA", 2, 15),
+            ]
+        )
+
+        cells, _ = built.shares("p1", [1, 2])
+
+        assert cells == [pytest.approx(0.25), pytest.approx(0.25)]
+
+    def test_l4_sums_targets_rather_than_averaging_the_weekly_shares(self):
+        """10 of 20 and 2 of 40 is 12 of 60 -- 20% -- not the 27.5% that an
+        average of 50% and 5% would claim."""
+        built = weekly(
+            [
+                week("p1", "SEA", 1, 10),
+                team_week("SEA", 1, 10),
+                week("p1", "SEA", 2, 2),
+                team_week("SEA", 2, 38),
+            ]
+        )
+
+        _, l4 = built.shares("p1", [1, 2])
+
+        assert l4 == pytest.approx(0.20)
+
+    def test_l4_leaves_out_the_weeks_he_missed(self):
+        """A receiver back from injury is judged on the games he played."""
+        built = weekly(
+            [team_week("SEA", 1, 40), week("p1", "SEA", 2, 10), team_week("SEA", 2, 30)]
+        )
+
+        _, l4 = built.shares("p1", [1, 2])
+
+        assert l4 == pytest.approx(0.25)
+
+    def test_a_player_who_played_none_of_the_weeks_has_no_l4(self):
+        cells, l4 = weekly([team_week("SEA", 1, 40)]).shares("p1", [1])
+
+        assert cells == [None]
+        assert l4 is None
+
+    def test_cells_line_up_with_the_weeks_asked_for(self):
+        built = weekly([week("p1", "SEA", wk, wk) for wk in range(1, 5)])
+
+        cells, _ = built.shares("p1", [2, 4])
+
+        assert cells == [pytest.approx(1.0), pytest.approx(1.0)]
+
+
+class TestReceiversCarryWeeklyShares:
+    def test_week_1_reads_last_seasons_weeks_for_the_team_he_is_on_now(self):
+        """The columns are his new team's last games. His cells are what he did
+        in those weeks, wherever he did it -- he was playing."""
+        built = weekly(
+            [
+                week("p1", "SEA", 17, 5),
+                team_week("SEA", 17, 20),
+                week("p1", "SEA", 18, 10),
+                team_week("SEA", 18, 30),
+                team_week("NE", 17, 30),
+                team_week("NE", 18, 30),
+            ]
+        )
+
+        table = receivers(
+            totals(total("p1", "Moved On", targets=100, production_team="SEA")),
+            team_targets(SEA=500),
+            snaps(snap("p1")),
+            {"SEA": 600},
+            {"p1": "NE"},
+            weekly=built,
+        )
+
+        row = table["NE"][0]
+        assert row.weekly_share == [pytest.approx(0.20), pytest.approx(0.25)]
+        assert row.l4_share == pytest.approx(15 / 65, abs=1e-4)
+
+    def test_without_weekly_data_the_season_table_is_unchanged(self):
+        table = receivers(
+            totals(total("p1", "One", targets=100)),
+            team_targets(SEA=500),
+            snaps(snap("p1")),
+            {"SEA": 600},
+            {"p1": "SEA"},
+        )
+
+        row = table["SEA"][0]
+        assert row.target_share == pytest.approx(0.20)
+        assert row.weekly_share == []
+        assert row.l4_share is None
+
+    def test_a_weekly_failure_costs_the_weekly_cells_and_nothing_else(self):
+        """Production's cron runs this code before production's plugin can
+        show it, so a bug in the new columns must not blank the old table."""
+
+        class Broken:
+            def recent_weeks(self, team):
+                raise RuntimeError("boom")
+
+            def shares(self, player_id, weeks):
+                raise RuntimeError("boom")
+
+        table = receivers(
+            totals(total("p1", "One", targets=100)),
+            team_targets(SEA=500),
+            snaps(snap("p1")),
+            {"SEA": 600},
+            {"p1": "SEA"},
+            weekly=Broken(),
+        )
+
+        row = table["SEA"][0]
+        assert row.target_share == pytest.approx(0.20)
+        assert row.weekly_share == []
+        assert row.l4_share is None
+
+
+class TestPayloadContract:
+    def test_the_fields_the_live_plugin_reads_are_still_there(self):
+        """Production keeps its current plugin until staging is signed off,
+        and that plugin reads these keys by name."""
+        assert {
+            "player",
+            "role",
+            "target_share",
+            "target_rate",
+            "rec_yds_per_game",
+        } <= set(ReceiverRow.model_fields)

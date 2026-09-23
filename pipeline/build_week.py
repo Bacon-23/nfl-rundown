@@ -195,9 +195,17 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - one module must not sink the page
         warnings.append(f"Team efficiency unavailable ({source_season}): {exc}")
 
+    # Loaded apart from the passing table so a failure here costs the week
+    # columns and leaves the season columns beside them untouched.
+    weekly = None
+    try:
+        weekly = passing_metric.load_weekly(source_season)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Weekly target share unavailable ({source_season}): {exc}")
+
     receivers: dict = {}
     try:
-        receivers = passing_metric.build(source_season, season)
+        receivers = passing_metric.build(source_season, season, weekly)
     except Exception as exc:  # noqa: BLE001
         warnings.append(f"Passing table unavailable ({source_season}): {exc}")
 
@@ -239,6 +247,8 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
                 games_sampled=sampled,
                 away=receivers.get(game.away.abbr, []),
                 home=receivers.get(game.home.abbr, []),
+                away_weeks=_recent_weeks(weekly, game.away.abbr),
+                home_weeks=_recent_weeks(weekly, game.home.abbr),
             )
 
         if any(team in backs for team in sides):
@@ -287,6 +297,17 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
     )
 
     return warnings
+
+
+def _recent_weeks(weekly: passing_metric.WeeklyTargets | None, team: str) -> list[int]:
+    """A side's week columns, or none -- which the renderer reads as "season only"."""
+    if weekly is None:
+        return []
+    try:
+        return weekly.recent_weeks(team)
+    except Exception:  # noqa: BLE001 - see passing._weekly_cells
+        log.exception("Recent weeks failed for %s; season columns only.", team)
+        return []
 
 
 def _missing_team_warnings(

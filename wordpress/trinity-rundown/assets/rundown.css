@@ -534,6 +534,16 @@
 }
 
 .trun-table--efficiency thead th:first-child,
+/*
+ * The passing table carries up to ten columns once the week columns are in.
+ * Between the stacking breakpoint and the full content width, "Tgt share"
+ * and "Tgt rate" are a few pixels wider than their columns, so these headings
+ * may wrap onto two lines there instead of spilling into the next column.
+ */
+.trun-table--passing thead th {
+	white-space: normal;
+}
+
 .trun-table--passing thead th:first-child,
 .trun-table--passing thead th:nth-child(2),
 .trun-table--rushing thead th:first-child,

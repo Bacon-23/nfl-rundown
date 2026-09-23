@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from pipeline.build_week import _games_sampled, _missing_team_warnings
+from pipeline.build_week import _games_sampled, _missing_team_warnings, _recent_weeks
 from pipeline.schema import Game, Kickoff, Odds, ReceiverRow, Team, TeamEfficiency
 
 
@@ -87,3 +87,24 @@ class TestGamesSampled:
     def test_neither_side_known_yields_no_count(self):
         """The badge then says "early season" rather than inventing a number."""
         assert _games_sampled({}, ("NE", "SEA")) is None
+
+
+class TestRecentWeeks:
+    def test_no_weekly_data_means_no_week_columns(self):
+        """The renderer reads an empty list as "draw the season table alone"."""
+        assert _recent_weeks(None, "SEA") == []
+
+    def test_a_failure_is_contained_to_the_week_columns(self):
+        class Broken:
+            def recent_weeks(self, team):
+                raise RuntimeError("boom")
+
+        assert _recent_weeks(Broken(), "SEA") == []
+
+    def test_it_reads_the_sides_own_weeks(self):
+        class Weeks:
+            def recent_weeks(self, team):
+                return {"SEA": [1, 2], "NE": [1]}[team]
+
+        assert _recent_weeks(Weeks(), "SEA") == [1, 2]
+        assert _recent_weeks(Weeks(), "NE") == [1]

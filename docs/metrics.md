@@ -185,6 +185,35 @@ is computed against his primary team — the one he saw the most targets with �
 because a share of two different denominators is not a number. This only bites
 for players who actually moved during a season.
 
+### Share of team targets by week, and L4
+
+Next to the season share, each side's table shows up to four week columns and an
+**L4** column, from `metrics/passing.py::WeeklyTargets`.
+
+- **The week columns belong to the team.** They are the last four weeks that
+  team played, oldest first, and bye weeks are skipped. They're games, not
+  calendar weeks, so the away and home tables of one matchup can show different
+  week numbers.
+- **A cell** is the player's targets that week divided by the targets of the
+  team *he played for that week*. For a player traded midseason, his
+  pre-trade weeks are measured against his old team.
+- **A dash is a week he did not play. 0% is a week he played and was not
+  targeted.** nflverse's box score has no row for a receiver who was on the
+  field and caught nothing, so the snap-count feed decides which it was.
+- **L4** is his targets over team targets, summed across the weeks shown,
+  **counting only the weeks he played**. So a receiver back from injury is
+  judged on the games he was in. It sums the targets rather than averaging the
+  weekly shares: 10 of 20 and 2 of 40 comes out to 20%, not 27.5%.
+- **In week 1** every module reads the prior season, so the columns are the new
+  team's last four games of that season. A player who changed teams in the
+  offseason shows what he did for his old team in those weeks, and the "2025
+  season" badge already says so. Weeks 2–4 show one to three columns.
+
+The weekly figures are loaded and computed apart from the season table. If they
+fail, the build warns and the table renders exactly as it did before the week
+columns existed. That's also how the plugin renders a stored payload from
+before them.
+
 ### Target rate — read this before publishing it
 
 The mockup calls this column **TPRR** (targets per route run). True TPRR

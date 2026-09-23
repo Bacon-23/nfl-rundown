@@ -59,6 +59,87 @@ def target_rate(
     return round(targets / estimated_pass_snaps, 4)
 
 
+class WeeklyTargets:
+    """Share of team targets, week by week -- the columns beside the season share.
+
+    The week columns belong to a *team*: its last few games, byes skipped. The
+    cells belong to a *player*: in each of those weeks, his targets over the
+    targets of whichever team he played for that week. In week 1 that is last
+    season's weeks for the team he is on now, and a player who moved is
+    measured against the team he was actually on -- the same rule the season
+    share follows.
+
+    A week he did not play is None, and one he played without a target is 0.0.
+    The box score alone cannot tell those apart, which is why the snap feed's
+    appearances come in too.
+    """
+
+    def __init__(
+        self,
+        played: dict[tuple[str, int], tuple[str, float]],
+        team_weeks: dict[tuple[str, int], float],
+    ) -> None:
+        self._played = played
+        self._team_weeks = team_weeks
+
+    @classmethod
+    def from_frames(
+        cls, box_scores: pl.DataFrame, appearances: pl.DataFrame
+    ) -> WeeklyTargets:
+        """Build from `players.weekly_targets` and `snaps.weekly_appearances`."""
+        team_weeks: dict[tuple[str, int], float] = {}
+        played: dict[tuple[str, int], tuple[str, float]] = {}
+
+        for row in box_scores.iter_rows(named=True):
+            key = (row["team"], int(row["week"]))
+            targets = float(row["targets"] or 0)
+            team_weeks[key] = team_weeks.get(key, 0.0) + targets
+            played[(row["player_id"], int(row["week"]))] = (row["team"], targets)
+
+        for row in appearances.iter_rows(named=True):
+            # A box-score row already says he played, and for which team.
+            played.setdefault((row["player_id"], int(row["week"])), (row["team"], 0.0))
+
+        return cls(played, team_weeks)
+
+    def recent_weeks(self, team: str, n: int = config.RECENT_WEEKS) -> list[int]:
+        """The last `n` weeks `team` played, oldest first."""
+        weeks = sorted(week for (side, week) in self._team_weeks if side == team)
+        return weeks[-n:] if n > 0 else []
+
+    def shares(
+        self, player_id: str, weeks: list[int]
+    ) -> tuple[list[float | None], float | None]:
+        """One cell per week asked for, plus the share across them.
+
+        The across-weeks share sums targets and team targets over the weeks he
+        played rather than averaging his weekly shares: 10 of 20 and 2 of 40 is
+        20%, not the 27.5% an average of the two shares would claim.
+        """
+        cells: list[float | None] = []
+        mine = teams = 0.0
+
+        for week in weeks:
+            played = self._played.get((player_id, week))
+            team_total = self._team_weeks.get((played[0], week), 0.0) if played else 0.0
+            if not played or team_total <= 0:
+                cells.append(None)
+                continue
+            cells.append(round(played[1] / team_total, 4))
+            mine += played[1]
+            teams += team_total
+
+        return cells, (round(mine / teams, 4) if teams > 0 else None)
+
+
+def load_weekly(season: int) -> WeeklyTargets:
+    """Pull the two feeds `WeeklyTargets` is built from."""
+    return WeeklyTargets.from_frames(
+        players_source.weekly_targets(season),
+        snaps_source.weekly_appearances(season),
+    )
+
+
 def receivers(
     totals: pl.DataFrame,
     team_targets: pl.DataFrame,
@@ -67,6 +148,7 @@ def receivers(
     current_team: dict[str, str],
     *,
     limit: int = config.RECEIVER_ROWS,
+    weekly: WeeklyTargets | None = None,
 ) -> dict[str, list[ReceiverRow]]:
     """Top receivers per team, keyed by the team they play for *now*.
 
@@ -74,6 +156,9 @@ def receivers(
     share is a share of that team's targets -- but he is listed under his
     current team. In week 1 those differ for everyone who changed address in
     the offseason; from week 2 they are the same thing.
+
+    `weekly` adds the week-by-week cells. Without it, or if it fails, every
+    row keeps its season columns and simply carries no weekly ones.
     """
     rows = player_rows(totals, team_targets, snap_share, dropbacks, current_team)
 
@@ -87,6 +172,8 @@ def receivers(
     for team, players in by_team.items():
         players.sort(key=_target_order)
         _assign_roles(players)
+        shown = players[:limit]
+        cells = _weekly_cells(weekly, team, shown)
         table[team] = [
             ReceiverRow(
                 player=player["player"],
@@ -94,14 +181,20 @@ def receivers(
                 target_share=player["target_share"],
                 target_rate=player["target_rate"],
                 rec_yds_per_game=player["rec_yds_per_game"],
+                weekly_share=cells.get(player["player_id"], ([], None))[0],
+                l4_share=cells.get(player["player_id"], ([], None))[1],
             )
-            for player in players[:limit]
+            for player in shown
         ]
 
     return table
 
 
-def build(stats_season: int, roster_season: int) -> dict[str, list[ReceiverRow]]:
+def build(
+    stats_season: int,
+    roster_season: int,
+    weekly: WeeklyTargets | None = None,
+) -> dict[str, list[ReceiverRow]]:
     """Pull every feed this module needs and produce the table."""
     return receivers(
         players_source.season_totals(stats_season),
@@ -109,7 +202,29 @@ def build(stats_season: int, roster_season: int) -> dict[str, list[ReceiverRow]]
         snaps_source.offense_share(stats_season),
         pbp_source.team_dropbacks(pbp_source.load(stats_season)),
         snaps_source.current_teams(roster_season),
+        weekly=weekly,
     )
+
+
+def _weekly_cells(
+    weekly: WeeklyTargets | None, team: str, players: list[dict]
+) -> dict[str, tuple[list[float | None], float | None]]:
+    """Each shown player's week cells, or nothing at all if they cannot be had.
+
+    Guarded on its own because production's hourly build runs this before
+    production's plugin can display it: a bug here has to cost the new columns,
+    never the season table beside them.
+    """
+    if weekly is None:
+        return {}
+    try:
+        weeks = weekly.recent_weeks(team)
+        return {
+            player["player_id"]: weekly.shares(player["player_id"], weeks) for player in players
+        }
+    except Exception:  # noqa: BLE001 - the season table must survive this
+        log.exception("Weekly target share failed for %s; season columns only.", team)
+        return {}
 
 
 # ---------------------------------------------------------------------------
