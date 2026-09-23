@@ -100,6 +100,11 @@ def stats_season(season: int, week: int) -> int:
 #: and two; three backs covers a genuine committee, which the mockup's example
 #: matchup happened not to have.
 RECEIVER_ROWS: Final[int] = 5
+
+#: Week columns in the passing table: the team's last this-many games, byes
+#: skipped. Four is what fits a phone and what the L4 column is named after,
+#: so changing it means renaming that column too.
+RECENT_WEEKS: Final[int] = 4
 RUSHER_ROWS: Final[int] = 3
 
 #: Carries per game a back needs before he belongs in a workload table.

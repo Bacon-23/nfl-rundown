@@ -110,6 +110,25 @@ def offense_share(season: int) -> pl.DataFrame:
     )
 
 
+def weekly_appearances(season: int) -> pl.DataFrame:
+    """Every (player, team, week) with at least one offensive snap.
+
+    The box score has no row for a receiver who played and caught nothing, so
+    this is what tells a 0% week apart from a week he sat out. Over 2026's
+    first two weeks that was 81 skill-position player-weeks.
+    """
+    return (
+        load(season)
+        .join(player_key(season), left_on="pfr_player_id", right_on="pfr_id", how="inner")
+        .select(
+            "player_id",
+            pl.col("team").map_elements(to_abbr, return_dtype=pl.Utf8),
+            "week",
+        )
+        .unique()
+    )
+
+
 def player_key(season: int) -> pl.DataFrame:
     """PFR id to gsis id, from that season's roster file.
 

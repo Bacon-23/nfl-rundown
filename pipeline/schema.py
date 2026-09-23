@@ -120,6 +120,13 @@ class ReceiverRow(Base):
     #: route data we do not license. Never label this "TPRR" in the UI.
     target_rate: float | None = None
     rec_yds_per_game: float | None = None
+    #: Share of team targets in each of the module's week columns for his
+    #: side, aligned with `PassingModule.away_weeks` / `home_weeks`. None is a
+    #: week he did not play; 0.0 is a week he played and was not targeted.
+    weekly_share: list[float | None] = Field(default_factory=list)
+    #: Targets over team targets across those weeks, counting only the ones
+    #: he played.
+    l4_share: float | None = None
 
 
 class RusherRow(Base):
@@ -194,6 +201,11 @@ class EfficiencyModule(Module):
 class PassingModule(Module):
     away: list[ReceiverRow] = Field(default_factory=list)
     home: list[ReceiverRow] = Field(default_factory=list)
+    #: Each side's week columns: the weeks that team last played, oldest
+    #: first. Per side because byes differ, and empty when the weekly feeds
+    #: failed -- the renderer then draws the season table alone.
+    away_weeks: list[int] = Field(default_factory=list)
+    home_weeks: list[int] = Field(default_factory=list)
 
 
 class RushingModule(Module):

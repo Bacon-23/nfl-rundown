@@ -135,6 +135,19 @@ def team_totals(season: int) -> pl.DataFrame:
     )
 
 
+def weekly_targets(season: int) -> pl.DataFrame:
+    """Targets per player per week, with the team he played for that week.
+
+    Summed rather than taken as-is so a feed that ever splits a player-week in
+    two cannot count one week twice.
+    """
+    return (
+        load(season)
+        .group_by(["player_id", "team", "week"])
+        .agg(targets=pl.col("targets").fill_null(0).sum())
+    )
+
+
 def _primary_team(weekly: pl.DataFrame) -> pl.DataFrame:
     """The team a player did the most with, for players who moved.
 

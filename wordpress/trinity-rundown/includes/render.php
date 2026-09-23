@@ -359,39 +359,6 @@ function trun_render_passing( array $game ): string {
 		return '';
 	}
 
-	$columns = [
-		[
-			'label' => __( 'Player', 'trinity-rundown' ),
-			'width' => '32%',
-			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
-		],
-		[
-			'label' => __( 'Role', 'trinity-rundown' ),
-			'width' => '13%',
-			'tip'   => __( 'Numbered within position across the whole team, and assigned before the five-row cut -- so a team\'s WR3 is its third receiver, not the third name left in the table.', 'trinity-rundown' ),
-			'cell'  => static fn( $row ) => (string) ( $row['role'] ?? '' ),
-		],
-		[
-			'label' => __( 'Tgt share', 'trinity-rundown' ),
-			'width' => '18%',
-			'tip'   => __( 'Player targets divided by team targets, season to date.', 'trinity-rundown' ),
-			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
-		],
-		[
-			// The one heading on the page that would mislead without its tooltip.
-			'label' => __( 'Tgt rate', 'trinity-rundown' ),
-			'width' => '18%',
-			'tip'   => __( 'Targets per estimated pass snap -- a proxy for TPRR, which requires charted route data. It reads high against a true TPRR figure; the ranking is sound, the level is not comparable.', 'trinity-rundown' ),
-			'cell'  => static fn( $row ) => trun_percent( $row['target_rate'] ?? null, 1 ),
-		],
-		[
-			'label' => __( 'Rec yds/gm', 'trinity-rundown' ),
-			'width' => '19%',
-			'tip'   => __( 'Receiving yards divided by games with at least one offensive snap, so weeks missed entirely do not drag the average down.', 'trinity-rundown' ),
-			'cell'  => static fn( $row ) => trun_decimal( $row['rec_yds_per_game'] ?? null, 1 ),
-		],
-	];
-
 	ob_start();
 	?>
 	<section class="trun-module trun-module--passing">
@@ -400,11 +367,91 @@ function trun_render_passing( array $game ): string {
 			<?php echo trun_render_badge( $game, 'passing' ); ?>
 		</h3>
 		<?php foreach ( $sides as $side ) : ?>
-			<?php echo trun_render_stat_table( $columns, $side['rows'], 'trun-table--passing', $side['label'], $side['side'] ); ?>
+			<?php
+			$weeks   = trun_get( $game, 'passing.' . $side['side'] . '_weeks', [] );
+			$columns = trun_passing_columns( is_array( $weeks ) ? array_values( $weeks ) : [] );
+			echo trun_render_stat_table( $columns, $side['rows'], 'trun-table--passing', $side['label'], $side['side'] );
+			?>
 		<?php endforeach; ?>
 	</section>
 	<?php
 	return (string) ob_get_clean();
+}
+
+/**
+ * The passing table's columns for one side.
+ *
+ * Built per side because the week columns are that team's last games, byes
+ * skipped, so the two tables in one matchup can show different weeks. With no
+ * weeks -- a payload from before the week columns existed, which storage can
+ * carry forward, or a run where the weekly feeds failed -- this is the season
+ * table exactly as it was.
+ */
+function trun_passing_columns( array $weeks ): array {
+	$weeks = array_slice( $weeks, -4 );
+	$count = count( $weeks );
+
+	// Season-only widths, and the widths once four week columns and L4 have
+	// squeezed in. Fewer than four weeks hands the spare room to the name.
+	$player_width = $count ? 22 + ( 4 - $count ) * 7 : 32;
+
+	$columns = [
+		[
+			'label' => __( 'Player', 'trinity-rundown' ),
+			'width' => $player_width . '%',
+			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
+		],
+		[
+			'label' => __( 'Role', 'trinity-rundown' ),
+			'width' => $count ? '8%' : '13%',
+			'tip'   => __( 'Numbered within position across the whole team, and assigned before the five-row cut -- so a team\'s WR3 is its third receiver, not the third name left in the table.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => (string) ( $row['role'] ?? '' ),
+		],
+		[
+			'label' => __( 'Tgt share', 'trinity-rundown' ),
+			'width' => $count ? '10%' : '18%',
+			'tip'   => __( 'Player targets divided by team targets, season to date.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
+		],
+	];
+
+	foreach ( $weeks as $index => $week ) {
+		$columns[] = [
+			/* translators: %d: NFL week number. */
+			'label' => sprintf( __( 'Wk %d', 'trinity-rundown' ), (int) $week ),
+			'width' => '7%',
+			'tip'   => __( 'Share of team targets that week, measured against the team he played for that week. A dash means he did not play; 0% means he played and was not targeted.', 'trinity-rundown' ),
+			'cell'  => static function ( $row ) use ( $index ) {
+				$cells = isset( $row['weekly_share'] ) && is_array( $row['weekly_share'] ) ? $row['weekly_share'] : [];
+				return trun_percent( $cells[ $index ] ?? null );
+			},
+		];
+	}
+
+	if ( $count ) {
+		$columns[] = [
+			'label' => __( 'L4', 'trinity-rundown' ),
+			'width' => '9%',
+			'tip'   => __( 'Targets divided by team targets across the weeks shown, counting only the weeks he played -- so a receiver back from injury is judged on the games he was in.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['l4_share'] ?? null, 1 ),
+		];
+	}
+
+	$columns[] = [
+		// The one heading on the page that would mislead without its tooltip.
+		'label' => __( 'Tgt rate', 'trinity-rundown' ),
+		'width' => $count ? '9%' : '18%',
+		'tip'   => __( 'Targets per estimated pass snap -- a proxy for TPRR, which requires charted route data. It reads high against a true TPRR figure; the ranking is sound, the level is not comparable.', 'trinity-rundown' ),
+		'cell'  => static fn( $row ) => trun_percent( $row['target_rate'] ?? null, 1 ),
+	];
+	$columns[] = [
+		'label' => __( 'Rec yds/gm', 'trinity-rundown' ),
+		'width' => $count ? '14%' : '19%',
+		'tip'   => __( 'Receiving yards divided by games with at least one offensive snap, so weeks missed entirely do not drag the average down.', 'trinity-rundown' ),
+		'cell'  => static fn( $row ) => trun_decimal( $row['rec_yds_per_game'] ?? null, 1 ),
+	];
+
+	return $columns;
 }
 
 /**
