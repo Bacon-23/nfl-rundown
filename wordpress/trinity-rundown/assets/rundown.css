@@ -48,13 +48,23 @@
  * list's top, and the end of the row is where it stays out of the way of the
  * first matchup, which is what the reader came for.
  *
- * `hidden` until rundown.js unhides it -- see trun_render_toolbar(). The
- * attribute needs no rule of its own; nothing here overrides it.
+ * `hidden` until rundown.js unhides it -- see trun_render_toolbar().
  */
 .trun-toolbar {
 	display: flex;
 	justify-content: flex-end;
 	margin-block-end: 0.75rem;
+}
+
+/*
+ * The browser hides [hidden] with a user-agent `display: none`, and any
+ * `display` an author sets -- the flex on the toolbar and on the tab strip --
+ * beats it. Without this, a reader whose script never ran got both controls
+ * on screen, doing nothing.
+ */
+.trun-toolbar[hidden],
+.trun-tablist[hidden] {
+	display: none;
 }
 
 /*
@@ -347,6 +357,84 @@
 .trun-oddsbar__note {
 	font-size: 0.75rem;
 	color: var(--trun-muted);
+}
+
+/* ---------- Tabs inside a game ---------- */
+
+/*
+ * One strip per game, under the records. `hidden` until rundown.js unhides it
+ * -- see trun_render_tabs() -- so without script every panel shows stacked.
+ *
+ * The strip scrolls sideways on one line rather than wrapping: six tabs, and
+ * a seventh coming, would otherwise break into two ragged rows in a phone-
+ * width column. No tab paints a background, for the same reason no odds cell
+ * does (see the odds bar above): nothing here may assume the page is light.
+ * The selected tab is told apart by weight and a rule, never colour alone.
+ */
+.trun-tablist {
+	display: flex;
+	gap: 0.25rem;
+	overflow-x: auto;
+	scrollbar-width: thin;
+	border-block-end: 1px solid var(--trun-rule);
+	margin-block-end: 1.25rem;
+	/*
+	 * On a phone the last tabs sit past the edge, and a clean cut reads as the
+	 * end of the strip. Fade the edge instead. The end padding is what the fade
+	 * lands on once the strip is scrolled all the way, so the last tab is never
+	 * the thing faded out. A mask, not a gradient overlay, so it assumes
+	 * nothing about the colour behind it.
+	 */
+	padding-inline-end: 2rem;
+	-webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+	mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+}
+
+.trun-tab {
+	flex: 0 0 auto;
+	font: inherit;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	line-height: 1.2;
+	letter-spacing: 0.02em;
+	color: var(--trun-muted);
+	background: none;
+	border: 0;
+	border-block-end: 3px solid transparent;
+	border-radius: 0;
+	/* Pull the rule down over the strip's own border so the two don't stack. */
+	margin-block-end: -1px;
+	padding: 0.625rem 0.875rem 0.5rem;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: color 150ms ease, border-color 150ms ease;
+}
+
+.trun-tab:hover {
+	color: inherit;
+}
+
+.trun-tab[aria-selected="true"] {
+	color: inherit;
+	font-weight: 700;
+	border-block-end-color: var(--trun-home);
+}
+
+.trun-tab:focus-visible,
+.trun-tabpanel:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.trun-tab {
+		transition: none;
+	}
+}
+
+/* A panel starts right under the strip, not a module's worth of margin below it. */
+.trun-tabpanel > :first-child {
+	margin-block-start: 0;
 }
 
 /* ---------- Stat modules ---------- */
@@ -843,6 +931,15 @@
 	   nothing. Same reason the tab strip never printed. */
 	.trun-game__summary::after {
 		display: none;
+	}
+
+	/* Tabs likewise: paper gets every panel, and no strip to click. */
+	.trun-tablist {
+		display: none;
+	}
+
+	.trun-tabpanel[hidden] {
+		display: block;
 	}
 
 	/* Logos cost ink and say nothing the name beside them does not. */

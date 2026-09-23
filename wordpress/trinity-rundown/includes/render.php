@@ -5,11 +5,12 @@
  * Everything is emitted server-side so the writeups are in the HTML for
  * search engines and for readers without JavaScript: the page is a list of
  * <details> panels and the browser does the collapsing. The only script is
- * rundown.js, and it only drives the expand-all control, which renders hidden
- * until the script unhides it -- so without JavaScript the page is unchanged.
+ * rundown.js, which drives the expand-all control and the tabs inside each
+ * game. Both render hidden until the script unhides them, so without
+ * JavaScript every panel's content simply shows stacked.
  *
- * The header and odds bar come first, then the stat tables off
- * trun_render_modules(), then the editorial sections. Every stat value is a
+ * The header, odds bar and records come first, then the tabs off
+ * trun_game_tabs(): the editorial sections, then the stat tables. Every stat value is a
  * fraction in the payload and becomes a percentage here; see docs/metrics.md.
  */
 
@@ -106,8 +107,7 @@ function trun_render_game( array $game ): string {
 			<?php echo trun_render_teambar( $game ); ?>
 			<?php echo trun_render_odds_bar( $game ); ?>
 			<?php echo trun_render_records( $game ); ?>
-			<?php echo trun_render_modules( $game ); ?>
-			<?php echo trun_render_notes( $game ); ?>
+			<?php echo trun_render_tabs( $game ); ?>
 		</div>
 	</details>
 	<?php
@@ -264,18 +264,96 @@ function trun_render_cells( array $cells, string $modifier = '' ): string {
 }
 
 /**
- * Stat modules, in reading order.
+ * Everything below the records strip, grouped into tabs, in reading order.
  *
  * Each module renders independently and returns an empty string when it has
- * no data, so a missing feed costs one section rather than the whole page.
+ * no data, so a missing feed costs one tab rather than the whole panel -- and
+ * a tab with nothing in it is dropped rather than shown empty. The first tab
+ * left standing is the one a reader sees on opening the game.
+ *
+ * New modules go into the tab they belong to here; nothing else changes.
  */
-function trun_render_modules( array $game ): string {
-	return trun_render_injuries( $game )
-		. trun_render_efficiency( $game )
-		. trun_render_passing( $game )
-		. trun_render_rushing( $game )
-		. trun_render_fantasy( $game )
-		. trun_render_kicking( $game );
+function trun_game_tabs( array $game ): array {
+	$tabs = [
+		'preview' => [
+			'label' => __( 'Preview', 'trinity-rundown' ),
+			'html'  => trun_render_notes( $game ) . trun_render_injuries( $game ),
+		],
+		'team'    => [
+			'label' => __( 'Team', 'trinity-rundown' ),
+			'html'  => trun_render_efficiency( $game ),
+		],
+		'passing' => [
+			'label' => __( 'Passing', 'trinity-rundown' ),
+			'html'  => trun_render_passing( $game ),
+		],
+		'rushing' => [
+			'label' => __( 'Rushing', 'trinity-rundown' ),
+			'html'  => trun_render_rushing( $game ),
+		],
+		'fantasy' => [
+			'label' => __( 'Fantasy', 'trinity-rundown' ),
+			'html'  => trun_render_fantasy( $game ),
+		],
+		'kicking' => [
+			'label' => __( 'Kicking', 'trinity-rundown' ),
+			'html'  => trun_render_kicking( $game ),
+		],
+	];
+
+	return array_filter(
+		$tabs,
+		static fn( $tab ) => '' !== trim( $tab['html'] )
+	);
+}
+
+/**
+ * The tabs themselves.
+ *
+ * Every panel is in the HTML and visible: without script this is the whole
+ * game stacked, exactly as it read before tabs. The tab buttons render
+ * `hidden`, and rundown.js unhides them, adds the ARIA roles and hides every
+ * panel but the first -- so the strip only appears once it is known to work,
+ * the same contract as the expand-all control. Labels ship here rather than
+ * in the script so they stay translatable.
+ *
+ * One tab is not a choice, so it gets no strip.
+ */
+function trun_render_tabs( array $game ): string {
+	$tabs = trun_game_tabs( $game );
+
+	if ( ! $tabs ) {
+		return '';
+	}
+
+	$anchor = trun_anchor( $game );
+
+	ob_start();
+	?>
+	<div class="trun-tabs" data-trun-tabs>
+		<?php if ( count( $tabs ) > 1 ) : ?>
+			<div class="trun-tablist" hidden>
+				<?php foreach ( $tabs as $slug => $tab ) : ?>
+					<button type="button" class="trun-tab" id="<?php echo esc_attr( $anchor . '--tab-' . $slug ); ?>"
+						data-trun-tab="<?php echo esc_attr( $slug ); ?>"
+						aria-controls="<?php echo esc_attr( $anchor . '--' . $slug ); ?>">
+						<?php echo esc_html( $tab['label'] ); ?>
+					</button>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
+		<?php foreach ( $tabs as $slug => $tab ) : ?>
+			<div class="trun-tabpanel" id="<?php echo esc_attr( $anchor . '--' . $slug ); ?>"
+				data-trun-panel="<?php echo esc_attr( $slug ); ?>">
+				<?php
+				// Already escaped by the module that built it.
+				echo $tab['html'];
+				?>
+			</div>
+		<?php endforeach; ?>
+	</div>
+	<?php
+	return (string) ob_get_clean();
 }
 
 /**
