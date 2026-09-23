@@ -410,14 +410,27 @@
 	transition: color 150ms ease, border-color 150ms ease;
 }
 
-.trun-tab:hover {
+/*
+ * The theme styles `button:hover` and `button:focus` with a grey fill, which
+ * on staging turned whichever tab was just clicked into a solid block. Every
+ * state is claimed here, not just the resting one.
+ */
+.trun-tab:hover,
+.trun-tab:focus,
+.trun-tab:active {
+	background: none;
 	color: inherit;
 }
 
+/*
+ * The rule is the text colour, not the home team's. Team colours are often
+ * near-black -- Green Bay's is rgb(32,55,49) -- and on this dark theme a
+ * team-coloured underline was simply not there.
+ */
 .trun-tab[aria-selected="true"] {
 	color: inherit;
 	font-weight: 700;
-	border-block-end-color: var(--trun-home);
+	border-block-end-color: currentColor;
 }
 
 .trun-tab:focus-visible,
