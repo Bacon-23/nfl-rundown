@@ -423,20 +423,43 @@
 }
 
 /*
- * The rule is the text colour, not the home team's. Team colours are often
- * near-black -- Green Bay's is rgb(32,55,49) -- and on this dark theme a
- * team-coloured underline was simply not there.
+ * The selected tab is filled with the home team's colour, matching the
+ * card's home-coloured edge and the table captions, with the ink the
+ * renderer computed for it. A fill, not a thin rule: team colours are often
+ * near-black -- Green Bay's is rgb(32,55,49) -- and a 3px team-coloured
+ * underline vanished on this dark theme, where a filled tab still reads.
+ * Weight marks it too, so it never rests on colour alone.
+ *
+ * After the hover/focus rule above and at the same specificity, so the fill
+ * survives the pointer resting on it.
  */
 .trun-tab[aria-selected="true"] {
-	color: inherit;
+	color: var(--trun-home-ink);
+	background: var(--trun-home);
 	font-weight: 700;
-	border-block-end-color: currentColor;
+	border-radius: 5px 5px 0 0;
+	border-block-end-color: var(--trun-home);
+	/*
+	 * Pittsburgh's colour is #000000, on a page that is #000000. A faint edge
+	 * in the ink keeps the tab's shape when the fill is the page -- and on a
+	 * light fill with black ink it is a barely-there darkening, nothing more.
+	 */
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 30%, transparent);
 }
 
-.trun-tab:focus-visible,
 .trun-tabpanel:focus-visible {
 	outline: 2px solid currentColor;
 	outline-offset: 2px;
+}
+
+/*
+ * Inset, because on the selected tab currentColor is the team ink: drawn
+ * outside the fill, a black ink would put a black ring on a black page.
+ * Inside, it always sits on the colour that ink was chosen against.
+ */
+.trun-tab:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: -4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
