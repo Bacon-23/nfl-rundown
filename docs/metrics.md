@@ -254,6 +254,31 @@ Receiving yards divided by games with at least one offensive snap. Games a
 player missed entirely do not drag his average down: a receiver who missed six
 weeks is a full-time receiver who missed six weeks.
 
+### Red zone and end zone targets
+
+Counted from play-by-play by `pbp.scoring_usage()`, season to date, and shown
+as a count with the team share behind it: `7 (24%)`.
+
+- **A target** is a regular-season pass play with a named receiver and no
+  sack. Two-point tries are left out, and penalty-erased plays (`no_play`)
+  drop out on their own. Over 2025 this definition gives 16,609 targets, the
+  same total as nflverse's weekly player stats, so the two sources agree on
+  what a target is.
+- **RZ tgt** — targets from the opponent's 20 or closer (`yardline_100 <= 20`).
+- **EZ tgt** — targets whose air yards reach the goal line
+  (`air_yards >= yardline_100`), from anywhere on the field. Play-by-play has
+  no end-zone flag, so this is a proxy. A pass thrown exactly to the goal line
+  counts, a deep shot from midfield counts, and a pass with no recorded air
+  yards does not. Expect it to differ slightly from charted end zone target
+  counts.
+- **The share** is of the team he earned the targets with, the same rule
+  target share follows. A player with no scoring-area targets shows `0 (0%)`.
+  A team with none at all has no share to give, and the cell shows `0` alone.
+
+These columns are guarded apart from everything else. If a play-by-play
+column they read moves upstream, they fall back to dashes and the rest of the
+table is untouched.
+
 ---
 
 ## Running back workload
@@ -267,6 +292,11 @@ Up to three backs per team, from `pipeline/metrics/rushing.py`.
 - **Target share** — as above, and computed by the same code the passing table
   uses. A stat that appears in two tables has to mean the same thing in both.
 - **Yards per attempt** — rushing yards divided by attempts.
+- **Inside 5** — designed runs from the opponent's 5 or closer, as a count
+  with the team share: `4 (57%)`. Scrambles and kneels are not carries.
+  Quarterback sneaks are, and count toward the team total, because they are
+  goal-line carries the backs did not get. Two-point tries are left out. The
+  share and fallback rules are the same as for red zone targets above.
 
 Sorted on **snap share**, not carries: 14 carries in a blowout and 14 carries
 in a one-score game are not the same workload, and the snap column is what says

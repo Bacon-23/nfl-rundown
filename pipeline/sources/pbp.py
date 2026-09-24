@@ -15,6 +15,7 @@ fixture never drifts.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from typing import Final
 
 import nflreadpy as nfl
@@ -45,6 +46,32 @@ REQUIRED_COLUMNS: Final[frozenset[str]] = frozenset(
         "game_seconds_remaining",
     }
 )
+
+
+#: The columns behind the scoring-area counts. Kept out of `REQUIRED_COLUMNS`
+#: on purpose: if one of these moves upstream, the red zone columns go dark and
+#: team efficiency does not go with them. `scoring_usage` checks them itself.
+SCORING_COLUMNS: Final[frozenset[str]] = frozenset(
+    {
+        "season_type",
+        "posteam",
+        "play_type",
+        "qb_kneel",
+        "yardline_100",
+        "air_yards",
+        "receiver_player_id",
+        "rusher_player_id",
+        "sack",
+        "qb_scramble",
+        "two_point_attempt",
+    }
+)
+
+#: Opponent's 20 or closer.
+RED_ZONE_YARDS: Final[int] = 20
+
+#: Opponent's 5 or closer.
+GOAL_LINE_YARDS: Final[int] = 5
 
 
 class PlayByPlayUnavailable(RuntimeError):
@@ -105,6 +132,88 @@ def team_dropbacks(frame: pl.DataFrame) -> dict[str, int]:
     return {row["posteam"]: int(row["dropbacks"]) for row in tally.iter_rows(named=True)}
 
 
+@dataclass(frozen=True)
+class ScoringUsage:
+    """Scoring-area counts, per player and per offense.
+
+    Each count is a triple: red zone targets, end zone targets, carries inside
+    the 5. The team triples are the denominators for the shares.
+    """
+
+    players: dict[str, tuple[int, int, int]] = field(default_factory=dict)
+    teams: dict[str, tuple[int, int, int]] = field(default_factory=dict)
+
+
+def scoring_usage(frame: pl.DataFrame) -> ScoringUsage:
+    """Red zone targets, end zone targets and carries inside the 5.
+
+    A target is a pass play with a named receiver and no sack; two-point tries
+    are left out because the weekly player stats leave them out of targets,
+    and the two counts should agree. Penalty-erased plays are `no_play` and
+    drop out on `play_type`.
+
+    nflverse has no end-zone flag. A pass whose air yards reach the goal line
+    is the standard proxy, and a pass with no recorded air yards is not
+    counted as one.
+
+    A carry inside the 5 is a designed run: scrambles and kneels are out, and
+    a quarterback sneak is in -- it is a goal-line carry the backs did not get.
+    """
+    check_columns(frame, SCORING_COLUMNS, "Play-by-play (scoring area)")
+
+    plays = frame.filter(
+        (pl.col("season_type") == REGULAR_SEASON)
+        & pl.col("posteam").is_not_null()
+        & (pl.col("two_point_attempt").fill_null(0) == 0)
+    )
+
+    in_red_zone = (pl.col("yardline_100") <= RED_ZONE_YARDS).fill_null(False)
+    # Reaches the goal line. A deep shot from midfield counts: an end zone
+    # target from outside the 20 is still one, just not a red zone target.
+    into_end_zone = (pl.col("air_yards") >= pl.col("yardline_100")).fill_null(False)
+
+    targets = plays.filter(
+        (pl.col("play_type") == "pass")
+        & pl.col("receiver_player_id").is_not_null()
+        & (pl.col("sack").fill_null(0) == 0)
+        & (in_red_zone | into_end_zone)
+    ).select(
+        pl.col("posteam"),
+        pl.col("receiver_player_id").alias("player_id"),
+        in_red_zone.cast(pl.Int64).alias("rz"),
+        into_end_zone.cast(pl.Int64).alias("ez"),
+        pl.lit(0, dtype=pl.Int64).alias("i5"),
+    )
+
+    carries = plays.filter(
+        (pl.col("play_type") == "run")
+        & pl.col("rusher_player_id").is_not_null()
+        & (pl.col("qb_scramble").fill_null(0) == 0)
+        & (pl.col("qb_kneel").fill_null(0) == 0)
+        & (pl.col("yardline_100") <= GOAL_LINE_YARDS)
+    ).select(
+        pl.col("posteam"),
+        pl.col("rusher_player_id").alias("player_id"),
+        pl.lit(0, dtype=pl.Int64).alias("rz"),
+        pl.lit(0, dtype=pl.Int64).alias("ez"),
+        pl.lit(1, dtype=pl.Int64).alias("i5"),
+    )
+
+    counted = pl.concat([targets, carries])
+    sums = [pl.col("rz").sum(), pl.col("ez").sum(), pl.col("i5").sum()]
+
+    return ScoringUsage(
+        players={
+            row["player_id"]: (int(row["rz"]), int(row["ez"]), int(row["i5"]))
+            for row in counted.group_by("player_id").agg(sums).iter_rows(named=True)
+        },
+        teams={
+            row["posteam"]: (int(row["rz"]), int(row["ez"]), int(row["i5"]))
+            for row in counted.group_by("posteam").agg(sums).iter_rows(named=True)
+        },
+    )
+
+
 def check_columns(frame: pl.DataFrame, required: frozenset[str], what: str) -> None:
     """Fail with the names, not with a KeyError three functions deeper."""
     missing = sorted(required - set(frame.columns))
@@ -123,11 +232,16 @@ def clear_cache() -> None:
 
 __all__ = [
     "REGULAR_SEASON",
+    "GOAL_LINE_YARDS",
+    "RED_ZONE_YARDS",
     "REQUIRED_COLUMNS",
+    "SCORING_COLUMNS",
     "PlayByPlayUnavailable",
+    "ScoringUsage",
     "check_columns",
     "clear_cache",
     "load",
     "offensive_plays",
+    "scoring_usage",
     "team_dropbacks",
 ]

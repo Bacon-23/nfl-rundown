@@ -127,6 +127,14 @@ class ReceiverRow(Base):
     #: Targets over team targets across those weeks, counting only the ones
     #: he played.
     l4_share: float | None = None
+    #: Targets from the opponent's 20 or closer, and his share of the team's.
+    #: None means the play-by-play count could not be made, not zero.
+    rz_targets: int | None = None
+    rz_target_share: float | None = None
+    #: Targets whose air yards reach the goal line -- a proxy, since
+    #: play-by-play has no end-zone flag.
+    ez_targets: int | None = None
+    ez_target_share: float | None = None
 
 
 class RusherRow(Base):
@@ -135,6 +143,10 @@ class RusherRow(Base):
     rush_att_per_game: float | None = None
     target_share: float | None = None
     yards_per_att: float | None = None
+    #: Designed runs from the opponent's 5 or closer, and his share of the
+    #: team's. The team count includes quarterback sneaks.
+    inside5_carries: int | None = None
+    inside5_share: float | None = None
 
 
 class SplitRow(Base):

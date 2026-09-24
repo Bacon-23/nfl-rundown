@@ -16,7 +16,12 @@ import logging
 import polars as pl
 
 from pipeline import config
-from pipeline.metrics.passing import player_rows
+from pipeline.metrics.passing import (
+    RUSHER_SCORING_FIELDS,
+    load_scoring,
+    player_rows,
+    scoring_cells,
+)
 from pipeline.schema import RusherRow
 from pipeline.sources import pbp as pbp_source
 from pipeline.sources import players as players_source
@@ -38,6 +43,7 @@ def backs(
     *,
     limit: int = config.RUSHER_ROWS,
     min_att_per_game: float = config.RUSHER_MIN_ATT_PER_GAME,
+    usage: pbp_source.ScoringUsage | None = None,
 ) -> dict[str, list[RusherRow]]:
     """Top backs per team, keyed by the team they play for *now*.
 
@@ -63,6 +69,8 @@ def backs(
     table: dict[str, list[RusherRow]] = {}
     for team, players in by_team.items():
         players.sort(key=_workload_order)
+        shown = players[:limit]
+        scoring = scoring_cells(usage, shown)
         table[team] = [
             RusherRow(
                 player=player["player"],
@@ -70,8 +78,13 @@ def backs(
                 rush_att_per_game=player["rush_att_per_game"],
                 target_share=player["target_share"],
                 yards_per_att=player["yards_per_att"],
+                **{
+                    key: value
+                    for key, value in scoring.get(player["player_id"], {}).items()
+                    if key in RUSHER_SCORING_FIELDS
+                },
             )
-            for player in players[:limit]
+            for player in shown
         ]
 
     return table
@@ -85,6 +98,7 @@ def build(stats_season: int, roster_season: int) -> dict[str, list[RusherRow]]:
         snaps_source.offense_share(stats_season),
         pbp_source.team_dropbacks(pbp_source.load(stats_season)),
         snaps_source.current_teams(roster_season),
+        usage=load_scoring(stats_season),
     )
 
 
