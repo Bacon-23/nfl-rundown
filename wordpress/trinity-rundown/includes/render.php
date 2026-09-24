@@ -1006,11 +1006,15 @@ function trun_render_footer( array $games ): string {
 	if ( 'nflverse_fallback' === $source ) {
 		$parts[] = __( 'consensus fallback in use', 'trinity-rundown' );
 	}
-	if ( $as_of ) {
+	// Stored in UTC; shown in Eastern, the zone every kickoff on the page is
+	// already in. "ET" rather than "EST", since New York is on daylight time
+	// for most of the season and the zone below follows it.
+	$as_of_time = $as_of ? strtotime( $as_of . ' UTC' ) : false;
+	if ( $as_of_time ) {
 		$parts[] = sprintf(
-			/* translators: %s: date and time of the last stats refresh. */
-			__( 'Stats as of %s UTC', 'trinity-rundown' ),
-			mysql2date( 'M j, Y g:i a', $as_of )
+			/* translators: %s: date and time of the last stats refresh, US Eastern. */
+			__( 'Stats as of %s ET', 'trinity-rundown' ),
+			wp_date( 'M j, Y g:i a', $as_of_time, new DateTimeZone( 'America/New_York' ) )
 		);
 	}
 
