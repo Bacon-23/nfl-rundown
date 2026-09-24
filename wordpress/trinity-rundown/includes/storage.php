@@ -257,8 +257,14 @@ class TRUN_Storage {
 	public static function save_editorial( int $season, int $week, string $game_id, ?array $notes, ?array $overrides ): void {
 		global $wpdb;
 
-		$data   = [ 'updated_at' => current_time( 'mysql', true ) ];
-		$format = [ '%s' ];
+		/*
+		 * No `updated_at` here. That column is the footer's "Stats as of", and
+		 * it has to mean when the pipeline last wrote this row's numbers.
+		 * Stamping it on a notes save made a week's stats look as fresh as its
+		 * last edit -- on staging, an hour and a half fresher than the build.
+		 */
+		$data   = [];
+		$format = [];
 
 		if ( null !== $notes ) {
 			$data['notes_json'] = wp_json_encode( $notes );
@@ -267,6 +273,10 @@ class TRUN_Storage {
 		if ( null !== $overrides ) {
 			$data['overrides_json'] = wp_json_encode( $overrides );
 			$format[]               = '%s';
+		}
+
+		if ( ! $data ) {
+			return;
 		}
 
 		$wpdb->update(
