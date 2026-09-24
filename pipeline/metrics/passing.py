@@ -149,6 +149,7 @@ def receivers(
     *,
     limit: int = config.RECEIVER_ROWS,
     weekly: WeeklyTargets | None = None,
+    usage: pbp_source.ScoringUsage | None = None,
 ) -> dict[str, list[ReceiverRow]]:
     """Top receivers per team, keyed by the team they play for *now*.
 
@@ -157,8 +158,9 @@ def receivers(
     current team. In week 1 those differ for everyone who changed address in
     the offseason; from week 2 they are the same thing.
 
-    `weekly` adds the week-by-week cells. Without it, or if it fails, every
-    row keeps its season columns and simply carries no weekly ones.
+    `weekly` adds the week-by-week cells, and `usage` the red zone and end
+    zone ones. Without either, or if it fails, every row keeps its season
+    columns and simply carries none of those.
     """
     rows = player_rows(totals, team_targets, snap_share, dropbacks, current_team)
 
@@ -174,6 +176,7 @@ def receivers(
         _assign_roles(players)
         shown = players[:limit]
         cells = _weekly_cells(weekly, team, shown)
+        scoring = scoring_cells(usage, shown)
         table[team] = [
             ReceiverRow(
                 player=player["player"],
@@ -183,6 +186,11 @@ def receivers(
                 rec_yds_per_game=player["rec_yds_per_game"],
                 weekly_share=cells.get(player["player_id"], ([], None))[0],
                 l4_share=cells.get(player["player_id"], ([], None))[1],
+                **{
+                    key: value
+                    for key, value in scoring.get(player["player_id"], {}).items()
+                    if key in RECEIVER_SCORING_FIELDS
+                },
             )
             for player in shown
         ]
@@ -203,6 +211,7 @@ def build(
         pbp_source.team_dropbacks(pbp_source.load(stats_season)),
         snaps_source.current_teams(roster_season),
         weekly=weekly,
+        usage=load_scoring(stats_season),
     )
 
 
@@ -267,6 +276,7 @@ def player_rows(
                 "player": row["player"] or row["player_id"],
                 "position": row["position"] or row.get("snap_position"),
                 "current_team": team,
+                "production_team": row["production_team"],
                 "targets": targets,
                 "carries": carries,
                 "snap_share": _round(row["snap_share"], 3),
@@ -294,6 +304,61 @@ def player_rows(
         )
 
     return rows
+
+
+#: The scoring-area fields each table carries. Both come out of one
+#: `scoring_cells` call, so a share means the same thing in either table.
+RECEIVER_SCORING_FIELDS = ("rz_targets", "rz_target_share", "ez_targets", "ez_target_share")
+RUSHER_SCORING_FIELDS = ("inside5_carries", "inside5_share")
+
+
+def load_scoring(stats_season: int) -> pbp_source.ScoringUsage | None:
+    """The scoring-area counts, or None if they cannot be had.
+
+    None rather than an exception: the red zone columns are the newest on the
+    page, and a failure in them has to cost those columns and nothing else.
+    """
+    try:
+        return pbp_source.scoring_usage(pbp_source.load(stats_season))
+    except Exception:  # noqa: BLE001 - the season tables must survive this
+        log.exception("Scoring-area counts failed for %s; those columns stay empty.", stats_season)
+        return None
+
+
+def scoring_cells(
+    usage: pbp_source.ScoringUsage | None, players: list[dict]
+) -> dict[str, dict[str, int | float | None]]:
+    """Each player's scoring-area counts and shares, keyed by player id.
+
+    The share is of the team he earned it with, the same rule `target_share`
+    follows, so a player traded mid-season is measured against his old
+    offense. A player with no scoring-area plays is a zero, not a gap: the
+    count was made and he was not in it. A team with none at all has no share
+    to give, and gets None.
+    """
+    if usage is None:
+        return {}
+    try:
+        cells: dict[str, dict[str, int | float | None]] = {}
+        for player in players:
+            counts = usage.players.get(player["player_id"], (0, 0, 0))
+            team = usage.teams.get(player["production_team"], (0, 0, 0))
+            shares = [
+                round(count / total, 4) if total > 0 else None
+                for count, total in zip(counts, team, strict=True)
+            ]
+            cells[player["player_id"]] = {
+                "rz_targets": counts[0],
+                "rz_target_share": shares[0],
+                "ez_targets": counts[1],
+                "ez_target_share": shares[1],
+                "inside5_carries": counts[2],
+                "inside5_share": shares[2],
+            }
+        return cells
+    except Exception:  # noqa: BLE001 - the season table must survive this
+        log.exception("Scoring-area cells failed; those columns stay empty.")
+        return {}
 
 
 def _target_order(player: dict) -> tuple:

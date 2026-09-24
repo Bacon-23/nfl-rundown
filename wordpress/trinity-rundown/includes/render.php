@@ -471,7 +471,9 @@ function trun_passing_columns( array $weeks ): array {
 
 	// Season-only widths, and the widths once four week columns and L4 have
 	// squeezed in. Fewer than four weeks hands the spare room to the name.
-	$player_width = $count ? 22 + ( 4 - $count ) * 7 : 32;
+	// The two scoring-area columns hold "7 (24%)" and are the widest numbers
+	// in the row, so they keep their width in both layouts.
+	$player_width = $count ? 16 + ( 4 - $count ) * 6 : 28;
 
 	$columns = [
 		[
@@ -481,13 +483,13 @@ function trun_passing_columns( array $weeks ): array {
 		],
 		[
 			'label' => __( 'Role', 'trinity-rundown' ),
-			'width' => $count ? '8%' : '13%',
+			'width' => $count ? '7%' : '10%',
 			'tip'   => __( 'Numbered within position across the whole team, and assigned before the five-row cut -- so a team\'s WR3 is its third receiver, not the third name left in the table.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => (string) ( $row['role'] ?? '' ),
 		],
 		[
 			'label' => __( 'Tgt share', 'trinity-rundown' ),
-			'width' => $count ? '10%' : '18%',
+			'width' => $count ? '8%' : '13%',
 			'tip'   => __( 'Player targets divided by team targets, season to date.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
 		],
@@ -497,7 +499,7 @@ function trun_passing_columns( array $weeks ): array {
 		$columns[] = [
 			/* translators: %d: NFL week number. */
 			'label' => sprintf( __( 'Wk %d', 'trinity-rundown' ), (int) $week ),
-			'width' => '7%',
+			'width' => '6%',
 			'tip'   => __( 'Share of team targets that week, measured against the team he played for that week. A dash means he did not play; 0% means he played and was not targeted.', 'trinity-rundown' ),
 			'cell'  => static function ( $row ) use ( $index ) {
 				$cells = isset( $row['weekly_share'] ) && is_array( $row['weekly_share'] ) ? $row['weekly_share'] : [];
@@ -509,7 +511,7 @@ function trun_passing_columns( array $weeks ): array {
 	if ( $count ) {
 		$columns[] = [
 			'label' => __( 'L4', 'trinity-rundown' ),
-			'width' => '9%',
+			'width' => '7%',
 			'tip'   => __( 'Targets divided by team targets across the weeks shown, counting only the weeks he played -- so a receiver back from injury is judged on the games he was in.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['l4_share'] ?? null, 1 ),
 		];
@@ -518,15 +520,27 @@ function trun_passing_columns( array $weeks ): array {
 	$columns[] = [
 		// The one heading on the page that would mislead without its tooltip.
 		'label' => __( 'Tgt rate', 'trinity-rundown' ),
-		'width' => $count ? '9%' : '18%',
+		'width' => $count ? '7%' : '13%',
 		'tip'   => __( 'Targets per estimated pass snap -- a proxy for TPRR, which requires charted route data. It reads high against a true TPRR figure; the ranking is sound, the level is not comparable.', 'trinity-rundown' ),
 		'cell'  => static fn( $row ) => trun_percent( $row['target_rate'] ?? null, 1 ),
 	];
 	$columns[] = [
 		'label' => __( 'Rec yds/gm', 'trinity-rundown' ),
-		'width' => $count ? '14%' : '19%',
+		'width' => $count ? '9%' : '14%',
 		'tip'   => __( 'Receiving yards divided by games with at least one offensive snap, so weeks missed entirely do not drag the average down.', 'trinity-rundown' ),
 		'cell'  => static fn( $row ) => trun_decimal( $row['rec_yds_per_game'] ?? null, 1 ),
+	];
+	$columns[] = [
+		'label' => __( 'RZ tgt', 'trinity-rundown' ),
+		'width' => '11%',
+		'tip'   => __( 'Targets from the opponent\'s 20-yard line or closer, season to date, and his share of the team\'s. Two-point tries are not counted.', 'trinity-rundown' ),
+		'cell'  => static fn( $row ) => trun_count_share( $row['rz_targets'] ?? null, $row['rz_target_share'] ?? null ),
+	];
+	$columns[] = [
+		'label' => __( 'EZ tgt', 'trinity-rundown' ),
+		'width' => '11%',
+		'tip'   => __( 'Targets whose air yards reach the goal line, from anywhere on the field, and his share of the team\'s. Play-by-play has no end-zone flag, so this is a proxy: a pass thrown to the goal line itself counts.', 'trinity-rundown' ),
+		'cell'  => static fn( $row ) => trun_count_share( $row['ez_targets'] ?? null, $row['ez_target_share'] ?? null ),
 	];
 
 	return $columns;
@@ -548,32 +562,38 @@ function trun_render_rushing( array $game ): string {
 	$columns = [
 		[
 			'label' => __( 'Player', 'trinity-rundown' ),
-			'width' => '32%',
+			'width' => '28%',
 			'cell'  => static fn( $row ) => (string) ( $row['player'] ?? '' ),
 		],
 		[
 			'label' => __( 'Snap %', 'trinity-rundown' ),
-			'width' => '15%',
+			'width' => '13%',
 			'tip'   => __( 'Pro Football Reference offensive snap share, averaged over games the player appeared in rather than over the season. The table is sorted on this.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['snap_share'] ?? null ),
 		],
 		[
 			'label' => __( 'Rush att/gm', 'trinity-rundown' ),
-			'width' => '19%',
+			'width' => '15%',
 			'tip'   => __( 'Rushing attempts divided by games with a snap. A back needs one attempt a game to appear here at all.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_decimal( $row['rush_att_per_game'] ?? null, 1 ),
 		],
 		[
 			'label' => __( 'Tgt share', 'trinity-rundown' ),
-			'width' => '17%',
+			'width' => '13%',
 			'tip'   => __( 'Player targets divided by team targets, season to date. The same figure, from the same code, as in the passing table.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
 		],
 		[
 			'label' => __( 'Yds/att', 'trinity-rundown' ),
-			'width' => '17%',
+			'width' => '13%',
 			'tip'   => __( 'Rushing yards divided by rushing attempts.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_decimal( $row['yards_per_att'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Inside 5', 'trinity-rundown' ),
+			'width' => '18%',
+			'tip'   => __( 'Designed runs from the opponent\'s 5-yard line or closer, season to date, and his share of the team\'s. Scrambles and kneels are not counted; quarterback sneaks count toward the team total.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_count_share( $row['inside5_carries'] ?? null, $row['inside5_share'] ?? null ),
 		],
 	];
 
@@ -1138,6 +1158,27 @@ function trun_decimal( $value, int $places = 1 ): string {
 	}
 
 	return number_format( (float) $value, $places );
+}
+
+/**
+ * A count and the team share behind it, e.g. "7 (24%)".
+ *
+ * A missing count is a dash: a payload from before these columns existed has
+ * no count, and that is not the same as a player with none. A count with no
+ * share -- a team that never got there -- shows the count alone.
+ */
+function trun_count_share( $count, $share ): string {
+	if ( null === $count || '' === $count || ! is_numeric( $count ) ) {
+		return '--';
+	}
+
+	$text = number_format( (float) $count );
+
+	if ( null !== $share && '' !== $share && is_numeric( $share ) ) {
+		$text .= ' (' . trun_percent( $share ) . ')';
+	}
+
+	return $text;
 }
 
 /**

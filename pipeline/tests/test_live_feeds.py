@@ -38,6 +38,18 @@ def test_play_by_play_still_has_every_column_we_read():
     assert frame.height > 40_000
 
 
+def test_play_by_play_still_has_every_scoring_area_column():
+    """Checked apart from the column guard above, the way the code checks
+    them: a move here costs the red zone columns, not the efficiency table."""
+    frame = pbp_source.load(SEASON)
+
+    assert set(frame.columns) >= pbp_source.SCORING_COLUMNS
+    usage = pbp_source.scoring_usage(frame)
+    # Every offense gets into the red zone over a season.
+    assert len(usage.teams) == 32
+    assert all(rz > 0 and i5 > 0 for rz, _, i5 in usage.teams.values())
+
+
 def test_snap_counts_still_have_every_column_we_read():
     frame = snaps_source.load(SEASON)
 
