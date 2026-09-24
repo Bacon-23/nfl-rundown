@@ -1275,10 +1275,14 @@ function trun_format_moneyline( $price ): string {
  * scanning the week by that rule should not have it shift underneath them.
  * If the secondary is missing or collides too, the side falls through to the
  * neutral declared on .trun-week rather than emitting a color at all.
+ *
+ * Near-black primaries have already moved to their secondary by then -- see
+ * trun_side_color() -- so Las Vegas at Pittsburgh is silver against gold and
+ * never reaches the collision rule at all.
  */
 function trun_team_color_vars( array $game ): string {
-	$away = trun_hex( trun_get( $game, 'away.color', '' ) );
-	$home = trun_hex( trun_get( $game, 'home.color', '' ) );
+	$away = trun_side_color( $game, 'away' );
+	$home = trun_side_color( $game, 'home' );
 
 	if ( '' !== $away && $away === $home ) {
 		$alternate = trun_hex( trun_get( $game, 'away.color2', '' ) );
@@ -1325,6 +1329,13 @@ function trun_hex( $value ): string {
  * by eye instead is how team-colored headers end up at 3:1.
  */
 function trun_ink_for( string $hex ): string {
+	return trun_luminance( $hex ) > 0.1791 ? '#000000' : '#ffffff';
+}
+
+/**
+ * WCAG relative luminance of a six-digit hex colour: 0 for black, 1 for white.
+ */
+function trun_luminance( string $hex ): float {
 	$channels = [];
 
 	foreach ( [ 1, 3, 5 ] as $offset ) {
@@ -1334,7 +1345,31 @@ function trun_ink_for( string $hex ): string {
 			: pow( ( $channel + 0.055 ) / 1.055, 2.4 );
 	}
 
-	$luminance = ( 0.2126 * $channels[0] ) + ( 0.7152 * $channels[1] ) + ( 0.0722 * $channels[2] );
+	return ( 0.2126 * $channels[0] ) + ( 0.7152 * $channels[1] ) + ( 0.0722 * $channels[2] );
+}
 
-	return $luminance > 0.1791 ? '#000000' : '#ffffff';
+/**
+ * A side's colour, moved to its secondary when the primary is all but black.
+ *
+ * Trinity Analytics' theme is black, and Las Vegas and Pittsburgh are
+ * #000000 and Chicago #0B162A: their card edge, table captions and selected
+ * tab were black on black. Below a luminance of 0.01 -- 1.2:1 against black,
+ * which takes exactly those three -- the secondary is used instead: silver,
+ * gold, orange. The navy teams (#002244 and the like) sit at 1.3:1 and up;
+ * they are dim but visible, and still look like themselves, so they stay.
+ *
+ * A secondary that is missing, or no lighter, leaves the primary alone.
+ */
+function trun_side_color( array $game, string $side ): string {
+	$primary = trun_hex( trun_get( $game, $side . '.color', '' ) );
+
+	if ( '' === $primary || trun_luminance( $primary ) >= 0.01 ) {
+		return $primary;
+	}
+
+	$secondary = trun_hex( trun_get( $game, $side . '.color2', '' ) );
+
+	return ( '' !== $secondary && trun_luminance( $secondary ) > trun_luminance( $primary ) )
+		? $secondary
+		: $primary;
 }
