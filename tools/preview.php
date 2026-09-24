@@ -103,6 +103,12 @@ function mysql2date( $format, $date ) {
 	return false === $time ? (string) $date : gmdate( $format, $time );
 }
 
+function wp_date( $format, $timestamp = null, $timezone = null ) {
+	$date = ( new DateTimeImmutable( '@' . ( $timestamp ?? time() ) ) )
+		->setTimezone( $timezone ?? new DateTimeZone( 'UTC' ) );
+	return $date->format( $format );
+}
+
 function current_time( $type, $gmt = 0 ) {
 	return gmdate( 'Y-m-d H:i:s' );
 }
