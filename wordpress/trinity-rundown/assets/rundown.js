@@ -107,7 +107,7 @@
 			select( tabs, panels, tabs[ next ], true );
 		} );
 
-		// The first tab PHP left standing is the default -- Preview, when it has anything.
+		// The first tab PHP left standing is the default -- Rundown, when it has anything.
 		select( tabs, panels, tabs[ 0 ], false );
 
 		// Last: the strip is only shown once it is known to work.

@@ -276,7 +276,7 @@ function trun_render_cells( array $cells, string $modifier = '' ): string {
 function trun_game_tabs( array $game ): array {
 	$tabs = [
 		'preview' => [
-			'label' => __( 'Preview', 'trinity-rundown' ),
+			'label' => __( 'Rundown', 'trinity-rundown' ),
 			'html'  => trun_render_notes( $game ) . trun_render_injuries( $game ),
 		],
 		'team'    => [
@@ -989,9 +989,11 @@ function trun_render_notes( array $game ): string {
 	$notes = isset( $game['notes'] ) && is_array( $game['notes'] ) ? $game['notes'] : [];
 
 	$sections = [
-		'scouting'   => __( 'Scouting Notes', 'trinity-rundown' ),
-		'td_leans'   => __( 'Anytime TD Leans', 'trinity-rundown' ),
-		'prediction' => __( 'Score Prediction', 'trinity-rundown' ),
+		'scouting'     => __( 'Trinity Notes', 'trinity-rundown' ),
+		'player_props' => __( 'Top Player Props', 'trinity-rundown' ),
+		'side_total'   => __( 'Side/Total Leans', 'trinity-rundown' ),
+		'td_leans'     => __( 'Anytime TD Leans', 'trinity-rundown' ),
+		'prediction'   => __( 'Score Prediction', 'trinity-rundown' ),
 	];
 
 	$out = '';

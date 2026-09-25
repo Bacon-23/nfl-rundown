@@ -28,15 +28,23 @@ const TRUN_ADMIN_CAP  = 'edit_posts';
  */
 function trun_admin_note_fields(): array {
 	return [
-		'scouting'   => [
-			'label' => __( 'Scouting Notes', 'trinity-rundown' ),
+		'scouting'     => [
+			'label' => __( 'Trinity Notes', 'trinity-rundown' ),
 			'rows'  => 6,
 		],
-		'td_leans'   => [
+		'player_props' => [
+			'label' => __( 'Top Player Props', 'trinity-rundown' ),
+			'rows'  => 3,
+		],
+		'side_total'   => [
+			'label' => __( 'Side/Total Leans', 'trinity-rundown' ),
+			'rows'  => 3,
+		],
+		'td_leans'     => [
 			'label' => __( 'Anytime TD Leans', 'trinity-rundown' ),
 			'rows'  => 3,
 		],
-		'prediction' => [
+		'prediction'   => [
 			'label' => __( 'Score Prediction', 'trinity-rundown' ),
 			'rows'  => 2,
 		],
