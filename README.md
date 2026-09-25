@@ -315,8 +315,8 @@ know before publishing a number: lines that came from the nflverse fallback
 rather than the book, team totals derived from spread and total rather than
 posted, and a game that has never had injury data stored.
 
-Three boxes per game write `notes_json`: **Scouting Notes**, **Anytime TD
-Leans**, **Score Prediction**. Under **Corrections** are per-field overrides
+Five boxes per game write `notes_json`: **Trinity Notes**, **Top Player
+Props**, **Side/Total Leans**, **Anytime TD Leans**, **Score Prediction**. Under **Corrections** are per-field overrides
 (`overrides_json`) for the odds and weather values. Each override box shows the
 pipeline's value as its placeholder, so an empty box visibly means "use the
 pipeline's number" -- and **clearing a box removes the correction** rather than

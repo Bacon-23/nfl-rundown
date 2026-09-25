@@ -296,7 +296,7 @@ WordPress.com accounts sign in via WP.com SSO, where the Application Passwords U
 
 - **Server-side PHP** emits full HTML for all 16 games, so Google indexes the writeups. `rundown.js` only enhances: every control it drives renders `hidden` until it runs.
 - Each matchup is a `<details>` element that the reader clicks to expand or collapse, on every screen size. All sixteen ship closed, and any number can be open at once. The browser does the collapsing; an "Expand all" button above the week is the script's.
-- Inside a game, the team bar, odds bar and records are always shown; everything below them sits in tabs -- **Preview** (scouting notes, TD leans, prediction, injuries; the default), **Team**, **Passing**, **Rushing**, **Fantasy**, **Kicking**. `trun_game_tabs()` is the one place a new module is assigned a tab, and a tab with no data is dropped. Without JavaScript, and in print, every tab's content shows stacked.
+- Inside a game, the team bar, odds bar and records are always shown; everything below them sits in tabs -- **Rundown** (Trinity notes, player props, side/total leans, TD leans, prediction, injuries; the default), **Team**, **Passing**, **Rushing**, **Fantasy**, **Kicking**. `trun_game_tabs()` is the one place a new module is assigned a tab, and a tab with no data is dropped. Without JavaScript, and in print, every tab's content shows stacked.
 - Scoped `.trundown-*` class prefix; per-game team colors injected as CSS custom properties from `teamcolors.csv`.
 - Below 640 px the stat tables reflow into stacked cards. Print stylesheet included.
 - Each panel's `<summary>` carries the matchup, the spread and the kickoff time, so a closed week still reads as a schedule.

@@ -25,7 +25,7 @@
  *   php tools/preview.php <payload.json> [out.html] [options]
  *
  *   --notes           attach sample editorial copy to every game, so the
- *                     Scouting Notes / TD Leans / Score Prediction sections
+ *                     Trinity Notes / Props / Leans / Score Prediction sections
  *                     render. Off by default: those are the writer's, and an
  *                     unwritten week is the honest default view.
  *   --game=<needle>   render only games whose id contains <needle>, e.g.
@@ -173,9 +173,11 @@ function preview_row( array $game, string $updated_at, array $notes, bool $locke
 /** Sample editorial copy, so the notes sections are visible under --notes. */
 function preview_notes(): array {
 	return [
-		'scouting'   => "Sample scouting copy, here so the editorial sections render at all.\n\nA second paragraph, to check the spacing between them.",
-		'td_leans'   => 'A lean, another lean, and a third (sprinkle)',
-		'prediction' => 'Home 23, Away 20',
+		'scouting'     => "Sample scouting copy, here so the editorial sections render at all.\n\nA second paragraph, to check the spacing between them.",
+		'player_props' => 'A player over 64.5 receiving yards, another under 0.5 interceptions',
+		'side_total'   => 'Home -3, under 44.5',
+		'td_leans'     => 'A lean, another lean, and a third (sprinkle)',
+		'prediction'   => 'Home 23, Away 20',
 	];
 }
 
