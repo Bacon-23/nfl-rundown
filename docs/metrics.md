@@ -172,7 +172,73 @@ Mean offensive EPA on pass and run plays, ranked 1 to 32 across the league.
 
 ---
 
-## Passing game
+## Quarterbacks
+
+The **Passing** tab, from `pipeline/metrics/quarterbacks.py`. It carries its own
+payload key, `quarterbacks`. `passing` is the pass catchers, for the history
+given under Receiving below.
+
+A side is one table with two rows: the offense's starting quarterback, and the
+other team's defense on the same stats. The defense row is what it allowed to
+every quarterback it faced, ranked 1 to 32. Under that is the quarterback's
+line against the blitz and without one.
+
+- **The starter** is the quarterback on an active roster today with the most
+  dropbacks in the window. A tie goes to the gsis id. His line is his wherever
+  he earned it, so in week 1 a quarterback who moved teams shows last season's
+  line under his new team, the same rule every player table follows.
+- **A dropback** is nflfastR's `qb_dropback`: a pass attempt, a sack or a
+  scramble. Two-point tries and the postseason are left out, and spikes are
+  not pass plays in play-by-play. nflfastR leaves the passer blank on a
+  scramble and names the rusher, so the dropback's quarterback is whichever of
+  the two is set.
+- **Att** and **DB** are per game, over the games with a dropback (his, or the
+  defense's).
+- **Sack%** and **Scr%** are per dropback.
+- **aDOT** is mean `air_yards` over pass attempts that have a value.
+  **CPOE** is mean `cpoe` over pass attempts, in percentage points as
+  nflfastR publishes it.
+- **Cmp%** is completions over attempts. **YPA** is passing yards over
+  attempts. Sacks are in neither half of YPA, so it matches the box score's
+  Y/A, not net yards per attempt.
+- **Press%** comes from Pro Football Reference's advanced passing
+  (`load_pfr_advstats`, weekly): `times_pressured` (hurries, hits and sacks)
+  over play-by-play dropbacks. PFR publishes it per passer per game, so the
+  denominator counts only the games PFR has charted. It runs a few days
+  behind. The quarterback's rate joins PFR ids to gsis ids through the roster
+  map snap counts use. A passer that map misses still counts against the
+  defense.
+- **Blitz%** comes from FTN's charting (`load_ftn_charting`): the dropbacks
+  with at least one blitzer (`n_blitzers >= 1`), over the dropbacks FTN has
+  charted. FTN keys each play to nflverse's own game and play ids, so it joins
+  straight onto play-by-play. Over 2025 it matched more than 98% of dropbacks.
+  FTN's data is CC BY-SA 4.0, and the tab's footnote credits it.
+- **The blitz split** is the starter's charted dropbacks divided by blitzed or
+  not: dropbacks as a total, then Cmp%, YPA and Sack% on each half.
+
+**Ranks.** 1 always favours the offense, as on DvP: the most attempts, yards
+and completion allowed, but the *lowest* sack and pressure rates. Scramble
+rate, aDOT and blitz rate have no end that favours the offense, so they rank
+by frequency, most first, and are not coloured. A defense with no value (no
+games charted yet) gets no rank, and the rest are ranked among themselves.
+Ties go to the abbreviation.
+
+**What is not here: a line under pressure.** It needs a play-level pressure
+flag, and in 2026 no free source has one. FTN charts blitzers but not
+pressure. PFR's pressures are per game. nflverse's participation file, which
+carried NGS's `was_pressure`, stops at 2025. This was checked on 2026-09-26.
+It would take a PFF or NGS licence.
+
+Play-by-play failing costs the tab. FTN or PFR failing costs its column, and
+the build reports which.
+
+---
+
+## Receiving
+
+The **Receiving** tab. Its payload key is still `passing`, because it was the
+Passing tab until the quarterback tab took that name, and stored payloads and
+older plugins read it under that key.
 
 Five receivers per team, ranked by target share, from
 `pipeline/metrics/passing.py`. Roles (`WR1`, `TE1`, `RB1`) are numbered within
@@ -294,7 +360,7 @@ Up to three backs per team, from `pipeline/metrics/rushing.py`.
   `load_snap_counts()`. Averaged over games the player appeared in, not over
   the season's weeks.
 - **Rush attempts per game** — attempts divided by games with a snap.
-- **Target share** — as above, and computed by the same code the passing table
+- **Target share** — as above, and computed by the same code the receiving table
   uses. A stat that appears in two tables has to mean the same thing in both.
 - **Yards per attempt** — rushing yards divided by attempts.
 - **Inside 5** — designed runs from the opponent's 5 or closer, as a count
@@ -336,7 +402,7 @@ The DvP tab, from `pipeline/metrics/dvp.py`. Three sections — Passing,
 Receiving, Rushing — and in each, both offenses. A side is two tables: what the
 *other* team's defense allows at each role, and then this offense's players.
 The window is the season rule, so week 1 reads last season and weeks 2–4 carry
-the `n = X games` badge, like the Passing and Rushing tabs.
+the `n = X games` badge, like the Receiving and Rushing tabs.
 
 ### Roles
 
@@ -382,7 +448,7 @@ The box-score columns are nflverse's weekly player stats, as they arrive.
 Carries include scrambles, because that is how the box score counts them.
 
 - **RZ tgt** — targets from the opponent's 20 or closer, counted from
-  play-by-play with the same rule as the Passing tab: a pass with a named
+  play-by-play with the same rule as the Receiving tab: a pass with a named
   receiver, no sack, no two-point try.
 - **RZ car** — designed runs from the opponent's 20 or closer. Scrambles and
   kneels are out and sneaks are in, the same rule as the Inside 5 column.

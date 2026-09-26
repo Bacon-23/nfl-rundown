@@ -19,6 +19,8 @@ import polars as pl
 import pytest
 
 from pipeline.metrics import dvp as dvp_metric
+from pipeline.metrics import quarterbacks as qb_metric
+from pipeline.sources import charting as charting_source
 from pipeline.sources import pbp as pbp_source
 from pipeline.sources import players as players_source
 from pipeline.sources import snaps as snaps_source
@@ -98,6 +100,38 @@ def test_every_defense_is_ranked_and_the_totals_add_up_to_the_league():
     caught = games.filter(pl.col("role") == "WR")["rec_yds"].sum()
 
     assert league == pytest.approx(caught)
+
+
+def test_the_quarterback_tab_still_has_every_column_it_reads():
+    """Play-by-play and both charting feeds, checked apart because the code
+    checks them apart: a move in FTN or PFR costs one column, not the tab."""
+    assert set(pbp_source.load(SEASON).columns) >= pbp_source.QB_COLUMNS
+    assert charting_source.blitzes(SEASON).height > 30_000
+    assert charting_source.pressures(SEASON).height > 500
+
+
+def test_ftn_charts_nearly_every_dropback_and_pfr_every_game():
+    """The blitz rate divides by the dropbacks FTN matched. Over 2025 that
+    should be all but a handful; a collapse here means the play-id join has
+    moved. Pressure needs every defense covered by PFR, under our codes."""
+    frame = qb_metric.dropbacks(pbp_source.load(SEASON))
+    frame = qb_metric.with_blitzes(frame, charting_source.blitzes(SEASON))
+    assert frame["blitzed"].null_count() / frame.height < 0.02
+
+    by_qb, by_defense = qb_metric.pressure_rates(
+        frame, charting_source.pressures(SEASON), snaps_source.player_key(SEASON)
+    )
+    assert len(by_defense) == 32
+    assert all(0.1 < rate < 0.5 for rate in by_defense.values())
+    assert len(by_qb) > 32
+
+
+def test_cpoe_still_arrives_in_percentage_points():
+    """The tab prints CPOE as "+2.1". If nflfastR ever ships a fraction, every
+    quarterback would read +0.0 and nobody would notice by eye."""
+    cpoe = pbp_source.load(SEASON)["cpoe"].drop_nulls()
+
+    assert cpoe.abs().max() > 50
 
 
 def test_ppr_points_arrive_per_game_already_scored():

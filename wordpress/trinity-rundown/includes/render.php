@@ -275,31 +275,37 @@ function trun_render_cells( array $cells, string $modifier = '' ): string {
  */
 function trun_game_tabs( array $game ): array {
 	$tabs = [
-		'preview' => [
+		'preview'   => [
 			'label' => __( 'Rundown', 'trinity-rundown' ),
 			'html'  => trun_render_notes( $game ) . trun_render_injuries( $game ),
 		],
-		'team'    => [
+		'team'      => [
 			'label' => __( 'Team', 'trinity-rundown' ),
 			'html'  => trun_render_efficiency( $game ),
 		],
-		'passing' => [
+		// The slugs follow the labels; the payload keys do not. Receivers have
+		// always travelled as `passing`, and stored payloads still say so.
+		'passing'   => [
 			'label' => __( 'Passing', 'trinity-rundown' ),
+			'html'  => trun_render_quarterbacks( $game ),
+		],
+		'receiving' => [
+			'label' => __( 'Receiving', 'trinity-rundown' ),
 			'html'  => trun_render_passing( $game ),
 		],
-		'rushing' => [
+		'rushing'   => [
 			'label' => __( 'Rushing', 'trinity-rundown' ),
 			'html'  => trun_render_rushing( $game ),
 		],
-		'dvp'     => [
+		'dvp'       => [
 			'label' => __( 'DvP', 'trinity-rundown' ),
 			'html'  => trun_render_dvp( $game ),
 		],
-		'fantasy' => [
+		'fantasy'   => [
 			'label' => __( 'Fantasy', 'trinity-rundown' ),
 			'html'  => trun_render_fantasy( $game ),
 		],
-		'kicking' => [
+		'kicking'   => [
 			'label' => __( 'Kicking', 'trinity-rundown' ),
 			'html'  => trun_render_kicking( $game ),
 		],
@@ -437,7 +443,266 @@ function trun_render_efficiency( array $game ): string {
 }
 
 /**
- * Passing game, one table per side.
+ * Quarterbacks: each offense's starter, and the defense he is about to face.
+ *
+ * A side is the quarterback's line with the other team's defense directly
+ * under it -- the same stats, what that defense allowed to every quarterback
+ * it faced, ranked of 32 -- and then his line with and without a blitz. The
+ * defense row is tinted like DvP; the quarterback's is not, because the row
+ * beneath it already carries the read.
+ *
+ * The stat keys mirror `QB_STATS` in pipeline/schema.py.
+ */
+function trun_render_quarterbacks( array $game ): string {
+	$html = '';
+	foreach ( [ 'away', 'home' ] as $side ) {
+		$data = trun_get( $game, 'quarterbacks.' . $side, [] );
+		if ( is_array( $data ) ) {
+			$html .= trun_render_qb_side( $game, $side, $data );
+		}
+	}
+
+	if ( '' === $html ) {
+		return '';
+	}
+
+	ob_start();
+	?>
+	<section class="trun-module trun-module--quarterbacks">
+		<h3 class="trun-module__heading">
+			<?php esc_html_e( 'Passing', 'trinity-rundown' ); ?>
+			<?php echo trun_render_badge( $game, 'quarterbacks' ); ?>
+		</h3>
+		<p class="trun-module__note trun-dvp__legend">
+			<span class="trun-dvp-tier trun-dvp-tier--soft"><?php esc_html_e( '1-11 easiest to pass on', 'trinity-rundown' ); ?></span>
+			<span class="trun-dvp-tier trun-dvp-tier--mid"><?php esc_html_e( '12-22', 'trinity-rundown' ); ?></span>
+			<span class="trun-dvp-tier trun-dvp-tier--stout"><?php esc_html_e( '23-32 hardest', 'trinity-rundown' ); ?></span>
+		</p>
+		<?php
+		// Built from escaped parts in trun_render_qb_side().
+		echo $html;
+		?>
+		<p class="trun-module__note trun-dvp__footnote">
+			<?php esc_html_e( 'The starter is the quarterback on the roster today with the most dropbacks in the window. A dropback is a pass attempt, a sack or a scramble. The defense row is what it allowed to every quarterback it faced, ranked 1 to 32 with 1 the easiest to pass on; sack and pressure rates are ranked lowest first, so 1 still favours the offense. Scramble rate, aDOT and blitz rate are ranked by frequency, most first, and are not coloured: neither end favours the offense. Pressure is Pro Football Reference\'s count, which is per game, so there is no line under pressure -- no free source charts pressure play by play. Blitz charting is by FTN Data, licensed CC BY-SA 4.0. Both run a few days behind, so their rates count only the games charted so far.', 'trinity-rundown' ); ?>
+		</p>
+	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * One quarterback against the other side's defense: his row and the
+ * defense's in one table, so each stat sits over what the defense allows,
+ * then his blitz split.
+ */
+function trun_render_qb_side( array $game, string $side, array $data ): string {
+	$quarterback = is_array( $data['quarterback'] ?? null ) ? $data['quarterback'] : null;
+	$defense     = is_array( $data['defense'] ?? null ) ? $data['defense'] : null;
+	$splits      = array_values( array_filter( (array) ( $data['splits'] ?? [] ), 'is_array' ) );
+
+	if ( ! $quarterback && ! $defense ) {
+		return '';
+	}
+
+	$other         = 'away' === $side ? 'home' : 'away';
+	$offense_name  = (string) trun_get( $game, $side . '.name', trun_get( $game, $side . '.abbr', '' ) );
+	$defense_name  = (string) trun_get( $game, $other . '.name', trun_get( $game, $other . '.abbr', '' ) );
+	$defense_label = (string) trun_get( $game, $other . '.abbr', $defense_name );
+
+	$rows = [];
+	if ( $quarterback ) {
+		$rows[] = [
+			'name'  => [
+				'text'  => (string) ( $quarterback['player'] ?? '' ),
+				'aside' => __( 'QB', 'trinity-rundown' ),
+			],
+			'games' => $quarterback['games'] ?? null,
+			'cells' => static fn( string $key, array $stat ) => call_user_func( $stat['format'], $quarterback['stats'][ $key ] ?? null ),
+		];
+	}
+	if ( $defense ) {
+		$rows[] = [
+			/* translators: %s: defense team abbreviation. */
+			'name'  => sprintf( __( '%s allows', 'trinity-rundown' ), $defense_label ),
+			'games' => $defense['games'] ?? null,
+			'cells' => static fn( string $key, array $stat ) => trun_qb_defense_cell(
+				is_array( $defense['stats'][ $key ] ?? null ) ? $defense['stats'][ $key ] : [],
+				$stat
+			),
+		];
+	}
+
+	$columns = [
+		[
+			'label' => '',
+			'width' => '19%',
+			'cell'  => static fn( $row ) => $row['name'],
+		],
+		[
+			'label' => __( 'GP', 'trinity-rundown' ),
+			'width' => '5%',
+			'tip'   => __( 'Games with a dropback -- his, or the defense\'s -- over the window in the badge.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => is_numeric( $row['games'] ) ? (string) (int) $row['games'] : '--',
+		],
+	];
+
+	foreach ( trun_qb_stats() as $key => $stat ) {
+		$columns[] = [
+			'label' => $stat['label'],
+			'width' => '7.6%',
+			'tip'   => $stat['tip'],
+			'cell'  => static fn( $row ) => call_user_func( $row['cells'], $key, $stat ),
+		];
+	}
+
+	/* translators: 1: offense team name, 2: defense team name. */
+	$matchup = sprintf( __( '%1$s offense against %2$s defense', 'trinity-rundown' ), $offense_name, $defense_name );
+
+	$html  = '<div class="trun-dvp__side"><p class="trun-dvp__matchup">' . esc_html( $matchup ) . '</p>';
+	/* translators: %s: offense team name. */
+	$caption = sprintf( __( '%s passing, per game', 'trinity-rundown' ), $offense_name );
+	$html   .= trun_render_stat_table( $columns, $rows, 'trun-table--dvp trun-table--qb', $caption, $side );
+
+	if ( $quarterback && $splits ) {
+		$html .= trun_render_stat_table(
+			trun_qb_split_columns(),
+			$splits,
+			'trun-table--dvp trun-table--qb-split',
+			/* translators: %s: quarterback name. */
+			sprintf( __( '%s against the blitz', 'trinity-rundown' ), (string) ( $quarterback['player'] ?? '' ) ),
+			$side
+		);
+	}
+
+	return $html . '</div>';
+}
+
+/**
+ * The stat columns, in display order, with their formatting and whether the
+ * rank has a direction to colour. Keys match `QB_STATS` in pipeline/schema.py.
+ */
+function trun_qb_stats(): array {
+	$rate  = static fn( $value ) => trun_percent( $value, 1 );
+	$tenth = static fn( $value ) => trun_decimal( $value, 1 );
+
+	return [
+		'att'           => [
+			'label'  => __( 'Att', 'trinity-rundown' ),
+			'tip'    => __( 'Pass attempts per game. Sacks, scrambles and spikes are not attempts.', 'trinity-rundown' ),
+			'format' => $tenth,
+		],
+		'dropbacks'     => [
+			'label'  => __( 'DB', 'trinity-rundown' ),
+			'tip'    => __( 'Dropbacks per game: pass attempts, sacks and scrambles. Two-point tries are not counted.', 'trinity-rundown' ),
+			'format' => $tenth,
+		],
+		'sack_rate'     => [
+			'label'  => __( 'Sack%', 'trinity-rundown' ),
+			'tip'    => __( 'Sacks per dropback. For the defense, ranked lowest first, so 1 still favours the offense.', 'trinity-rundown' ),
+			'format' => $rate,
+		],
+		'scramble_rate' => [
+			'label'   => __( 'Scr%', 'trinity-rundown' ),
+			'tip'     => __( 'Scrambles per dropback: a called pass the quarterback ran with. Ranked by frequency and not coloured.', 'trinity-rundown' ),
+			'format'  => $rate,
+			'neutral' => true,
+		],
+		'adot'          => [
+			'label'   => __( 'aDOT', 'trinity-rundown' ),
+			'tip'     => __( 'Average depth of target: air yards per pass attempt, measured from the line of scrimmage. Ranked by depth and not coloured.', 'trinity-rundown' ),
+			'format'  => $tenth,
+			'neutral' => true,
+		],
+		'cpoe'          => [
+			'label'  => __( 'CPOE', 'trinity-rundown' ),
+			'tip'    => __( 'Completion percentage over expected, in percentage points, from nflfastR\'s model of how often each throw is caught.', 'trinity-rundown' ),
+			'format' => static fn( $value ) => trun_signed( $value, 1 ),
+		],
+		'cmp_pct'       => [
+			'label'  => __( 'Cmp%', 'trinity-rundown' ),
+			'tip'    => __( 'Completions per pass attempt.', 'trinity-rundown' ),
+			'format' => $rate,
+		],
+		'ypa'           => [
+			'label'  => __( 'YPA', 'trinity-rundown' ),
+			'tip'    => __( 'Passing yards per attempt. Sack yardage is not taken off.', 'trinity-rundown' ),
+			'format' => $tenth,
+		],
+		'pressure_rate' => [
+			'label'  => __( 'Press%', 'trinity-rundown' ),
+			'tip'    => __( 'Pressures per dropback, from Pro Football Reference\'s charting: hurries, hits and sacks. For the quarterback, how often he was pressured; for the defense, how often it got there, ranked lowest first. Counts only the games PFR has charted.', 'trinity-rundown' ),
+			'format' => $rate,
+		],
+		'blitz_rate'    => [
+			'label'   => __( 'Blitz%', 'trinity-rundown' ),
+			'tip'     => __( 'Dropbacks with at least one blitzer, from FTN\'s charting. For the quarterback, how often he was blitzed; for the defense, how often it blitzed. Ranked by frequency and not coloured. Counts only the plays FTN has charted.', 'trinity-rundown' ),
+			'format'  => $rate,
+			'neutral' => true,
+		],
+	];
+}
+
+/**
+ * A defense's value with its rank beside it. Tinted by band unless the stat
+ * has no direction, in which case the rank alone is printed.
+ */
+function trun_qb_defense_cell( array $cell, array $stat ): array {
+	$out  = [ 'text' => call_user_func( $stat['format'], $cell['value'] ?? null ) ];
+	$rank = $cell['rank'] ?? null;
+
+	if ( null !== $rank && is_numeric( $rank ) ) {
+		$out['aside'] = (string) (int) $rank;
+		if ( empty( $stat['neutral'] ) ) {
+			$out['class'] = 'trun-dvp-tier trun-dvp-tier--' . trun_dvp_tier( (int) $rank );
+		}
+	}
+
+	return $out;
+}
+
+/** The blitz split's columns. */
+function trun_qb_split_columns(): array {
+	$labels = [
+		'blitz'    => __( 'Blitzed', 'trinity-rundown' ),
+		'no_blitz' => __( 'Not blitzed', 'trinity-rundown' ),
+	];
+
+	return [
+		[
+			'label' => '',
+			'width' => '24%',
+			'cell'  => static fn( $row ) => $labels[ (string) ( $row['split'] ?? '' ) ] ?? (string) ( $row['split'] ?? '' ),
+		],
+		[
+			'label' => __( 'Dropbacks', 'trinity-rundown' ),
+			'width' => '19%',
+			'tip'   => __( 'His dropbacks FTN has charted, with and without a blitz. Totals, not per game.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => is_numeric( $row['dropbacks'] ?? null ) ? (string) (int) $row['dropbacks'] : '--',
+		],
+		[
+			'label' => __( 'Cmp%', 'trinity-rundown' ),
+			'width' => '19%',
+			'tip'   => __( 'Completions per pass attempt on those dropbacks.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['cmp_pct'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'YPA', 'trinity-rundown' ),
+			'width' => '19%',
+			'tip'   => __( 'Passing yards per attempt on those dropbacks.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['ypa'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Sack%', 'trinity-rundown' ),
+			'width' => '19%',
+			'tip'   => __( 'Sacks per dropback on those dropbacks.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_percent( $row['sack_rate'] ?? null, 1 ),
+		],
+	];
+}
+
+/**
+ * Receiving, one table per side. Named `passing` in the payload, where it has
+ * always been.
  *
  * The third column is the one to be careful about. It is NOT targets per route
  * run -- that needs charted route data we do not license -- so it is labeled
@@ -455,7 +720,7 @@ function trun_render_passing( array $game ): string {
 	?>
 	<section class="trun-module trun-module--passing">
 		<h3 class="trun-module__heading">
-			<?php esc_html_e( 'Passing Game', 'trinity-rundown' ); ?>
+			<?php esc_html_e( 'Receiving', 'trinity-rundown' ); ?>
 			<?php echo trun_render_badge( $game, 'passing' ); ?>
 		</h3>
 		<?php foreach ( $sides as $side ) : ?>
@@ -594,7 +859,7 @@ function trun_render_rushing( array $game ): string {
 		[
 			'label' => __( 'Tgt share', 'trinity-rundown' ),
 			'width' => '13%',
-			'tip'   => __( 'Player targets divided by team targets, season to date. The same figure, from the same code, as in the passing table.', 'trinity-rundown' ),
+			'tip'   => __( 'Player targets divided by team targets, season to date. The same figure, from the same code, as in the receiving table.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => trun_percent( $row['target_share'] ?? null, 1 ),
 		],
 		[

@@ -841,6 +841,15 @@
 	background: color-mix(in srgb, #c63a32 22%, transparent);
 }
 
+/*
+ * The quarterback table fits ten stats beside the name, so its headings may
+ * wrap onto two lines rather than spill into the next column. It inherits
+ * everything else -- fixed layout, stacking on a phone -- from the DvP table.
+ */
+.trun-table--qb thead th {
+	white-space: normal;
+}
+
 /* The rank of 32 beside a value, or the position beside a name. */
 .trun-cell__aside {
 	margin-inline-start: 0.25rem;

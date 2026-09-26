@@ -15,14 +15,18 @@ from pipeline.build_week import (
     _dvp_sides,
     _games_sampled,
     _missing_team_warnings,
+    _qb_sides,
     _recent_weeks,
 )
 from pipeline.metrics.dvp import DvpTables
+from pipeline.metrics.quarterbacks import QbTables
 from pipeline.schema import (
     DvpRoleRow,
     Game,
     Kickoff,
     Odds,
+    QbDefenseRow,
+    QbRow,
     ReceiverRow,
     Team,
     TeamEfficiency,
@@ -120,6 +124,22 @@ class TestDvpSides:
 
     def test_no_tables_means_no_sides(self):
         assert _dvp_sides(DvpTables(), game()) == (None, None)
+
+
+class TestQbSides:
+    def test_each_quarterback_meets_the_other_sides_defense(self):
+        tables = QbTables(
+            quarterbacks={"NE": QbRow(player="Maye"), "SEA": QbRow(player="Lock")},
+            defenses={"NE": QbDefenseRow(team="NE"), "SEA": QbDefenseRow(team="SEA")},
+        )
+
+        away, home = _qb_sides(tables, game("NE", "SEA"))
+
+        assert (away.quarterback.player, away.defense.team) == ("Maye", "SEA")
+        assert (home.quarterback.player, home.defense.team) == ("Lock", "NE")
+
+    def test_no_tables_means_no_sides(self):
+        assert _qb_sides(QbTables(), game()) == (None, None)
 
 
 class TestRecentWeeks:

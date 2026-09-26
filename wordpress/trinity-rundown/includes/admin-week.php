@@ -454,7 +454,7 @@ function trun_admin_render_readout( array $game ): void {
  * still render above their own tables.
  */
 function trun_admin_stats_basis( array $game ): string {
-	foreach ( [ 'efficiency', 'passing', 'rushing' ] as $module ) {
+	foreach ( [ 'efficiency', 'quarterbacks', 'passing', 'rushing' ] as $module ) {
 		$badge = trun_get( $game, $module . '.badge', '' );
 		if ( '' !== $badge ) {
 			return (string) $badge;
@@ -481,6 +481,7 @@ function trun_admin_stats_basis( array $game ): string {
  */
 function trun_admin_render_stats( array $game ): void {
 	$tables = trun_render_efficiency( $game )
+		. trun_render_quarterbacks( $game )
 		. trun_render_passing( $game )
 		. trun_render_rushing( $game )
 		. trun_render_dvp( $game )

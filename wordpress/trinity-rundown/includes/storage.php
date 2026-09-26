@@ -76,7 +76,7 @@ class TRUN_Storage {
 	 * A key present but empty is honoured: that is the pipeline actively
 	 * saying the list is empty.
 	 */
-	const STICKY_KEYS = [ 'injuries', 'weather', 'efficiency', 'passing', 'rushing', 'fantasy', 'kicking', 'dvp' ];
+	const STICKY_KEYS = [ 'injuries', 'weather', 'efficiency', 'quarterbacks', 'passing', 'rushing', 'fantasy', 'kicking', 'dvp' ];
 
 	/**
 	 * Keys the pipeline may not set, whatever it sends.
