@@ -175,3 +175,9 @@ live against 2025), plus play-by-play, which is also already loaded.
   figures agree to within a few percent and ranks within a place or two. The
   one intended divergence is Long — theirs is a season maximum (JAX vs RBs:
   38.0, which our data reproduces), ours the per-game longest averaged (14.9).
+- **No DvP tab any more (0.10.1).** The sub-tab strip (#31) was dropped at
+  Carter's request: each section now renders as its own module,
+  `trun_render_dvp_section( $game, $key )`, at the top of the game tab of the
+  same name -- DvP Passing above the quarterback tables, Receiving above the
+  receivers, Rushing above the running-back workload. The payload is
+  unchanged.

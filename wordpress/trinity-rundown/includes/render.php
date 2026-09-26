@@ -285,21 +285,18 @@ function trun_game_tabs( array $game ): array {
 		],
 		// The slugs follow the labels; the payload keys do not. Receivers have
 		// always travelled as `passing`, and stored payloads still say so.
+		// Each of the three opens with its defense-vs-position section.
 		'passing'   => [
 			'label' => __( 'Passing', 'trinity-rundown' ),
-			'html'  => trun_render_quarterbacks( $game ),
+			'html'  => trun_render_dvp_section( $game, 'passing' ) . trun_render_quarterbacks( $game ),
 		],
 		'receiving' => [
 			'label' => __( 'Receiving', 'trinity-rundown' ),
-			'html'  => trun_render_passing( $game ),
+			'html'  => trun_render_dvp_section( $game, 'receiving' ) . trun_render_passing( $game ),
 		],
 		'rushing'   => [
 			'label' => __( 'Rushing', 'trinity-rundown' ),
-			'html'  => trun_render_rushing( $game ),
-		],
-		'dvp'       => [
-			'label' => __( 'DvP', 'trinity-rundown' ),
-			'html'  => trun_render_dvp( $game ),
+			'html'  => trun_render_dvp_section( $game, 'rushing' ) . trun_render_rushing( $game ),
 		],
 		'fantasy'   => [
 			'label' => __( 'Fantasy', 'trinity-rundown' ),
@@ -336,23 +333,19 @@ function trun_render_tabs( array $game ): string {
 /**
  * A tab group: the strip and its panels, from `slug => [label, html]`.
  *
- * Shared by the game tabs and the DvP tab's own Passing / Receiving / Rushing
- * strip. `$anchor` prefixes every id, so a nested group needs one of its own
- * -- the DvP group's Passing panel must not collide with the game's Passing
- * tab. rundown.js wires each group separately, nested or not.
+ * `$anchor` prefixes every id, so a second group on the page needs one of its
+ * own. rundown.js wires each group separately.
  */
-function trun_render_tab_group( array $tabs, string $anchor, string $modifier = '' ): string {
+function trun_render_tab_group( array $tabs, string $anchor ): string {
 	if ( ! $tabs ) {
 		return '';
 	}
-
-	$list_class = 'trun-tablist' . ( '' === $modifier ? '' : ' trun-tablist--' . $modifier );
 
 	ob_start();
 	?>
 	<div class="trun-tabs" data-trun-tabs>
 		<?php if ( count( $tabs ) > 1 ) : ?>
-			<div class="<?php echo esc_attr( $list_class ); ?>" hidden>
+			<div class="trun-tablist" hidden>
 				<?php foreach ( $tabs as $slug => $tab ) : ?>
 					<button type="button" class="trun-tab" id="<?php echo esc_attr( $anchor . '--tab-' . $slug ); ?>"
 						data-trun-tab="<?php echo esc_attr( $slug ); ?>"
@@ -895,43 +888,32 @@ function trun_render_rushing( array $game ): string {
  * Defense vs. position: what each defense gives up, set against the offense
  * about to face it.
  *
- * Three sections -- passing, receiving, rushing -- each its own sub-tab
- * inside the DvP tab, and in each, both offenses. A side is two tables: what the *other* team's defense allows per
- * game at each role, with its rank of 32, and then this offense's players
- * with their own per-game lines. A player's cell is coloured by the rank the
- * defense holds at his role, which is the read the tab exists for.
+ * One section -- passing, receiving or rushing -- at the top of the game tab
+ * of the same name, and in it both offenses. A side is two tables: what the
+ * *other* team's defense allows per game at each role, with its rank of 32,
+ * and then this offense's players with their own per-game lines. A player's
+ * cell is coloured by the rank the defense holds at his role, which is the
+ * read the section exists for.
  *
  * The section and stat keys mirror `DVP_SECTIONS` in pipeline/schema.py.
  */
-function trun_render_dvp( array $game ): string {
-	$tabs = [];
-
-	foreach ( trun_dvp_sections() as $key => $section ) {
-		$sides = '';
-		foreach ( [ 'away', 'home' ] as $side ) {
-			$data = trun_get( $game, 'dvp.' . $side . '.' . $key, [] );
-			if ( is_array( $data ) ) {
-				$sides .= trun_render_dvp_side( $game, $side, $data, $section );
-			}
-		}
-
-		// The heading duplicates the sub-tab's label once the strip is live,
-		// and the stylesheet hides it then. It stays for print and for a
-		// reader whose script never ran, where the sections stack.
-		if ( '' !== $sides ) {
-			$tabs[ $key ] = [
-				'label' => $section['label'],
-				'html'  => '<div class="trun-dvp__section"><h4 class="trun-dvp__heading">'
-					. esc_html( $section['label'] ) . '</h4>' . $sides . '</div>',
-			];
-		}
-	}
-
-	if ( ! $tabs ) {
+function trun_render_dvp_section( array $game, string $key ): string {
+	$section = trun_dvp_sections()[ $key ] ?? null;
+	if ( ! $section ) {
 		return '';
 	}
 
-	$blocks = trun_render_tab_group( $tabs, trun_anchor( $game ) . '--dvp', 'sub' );
+	$blocks = '';
+	foreach ( [ 'away', 'home' ] as $side ) {
+		$data = trun_get( $game, 'dvp.' . $side . '.' . $key, [] );
+		if ( is_array( $data ) ) {
+			$blocks .= trun_render_dvp_side( $game, $side, $data, $section );
+		}
+	}
+
+	if ( '' === $blocks ) {
+		return '';
+	}
 
 	ob_start();
 	?>
@@ -950,7 +932,8 @@ function trun_render_dvp( array $game ): string {
 		echo $blocks;
 		?>
 		<p class="trun-module__note trun-dvp__footnote">
-			<?php esc_html_e( 'Allowed figures are what the defense gave up per game to every opponent at that role, combined, ranked 1 to 32 with 1 giving up the most. Interceptions are ranked the other way round, so 1 always favours the offense. Player lines are his own per game, and each cell is coloured by what this defense allows to his role; a fullback counts as a running back. Long is the longest gain in each game, averaged -- not the season\'s longest play. A red zone carry is a designed run, so scrambles are not counted.', 'trinity-rundown' ); ?>
+			<?php esc_html_e( 'Allowed figures are what the defense gave up per game to every opponent at that role, combined, ranked 1 to 32 with 1 giving up the most. Player lines are his own per game, and each cell is coloured by what this defense allows to his role.', 'trinity-rundown' ); ?>
+			<?php echo esc_html( $section['note'] ); ?>
 		</p>
 	</section>
 	<?php
@@ -1063,8 +1046,8 @@ function trun_render_dvp_side( array $game, string $side, array $data, array $se
 }
 
 /**
- * The three sections, their stat columns in display order, and what each
- * column means. Keys match `DVP_SECTIONS` in pipeline/schema.py.
+ * The three sections, their stat columns in display order, what each column
+ * means, and the footnote sentences only that section needs. Keys match `DVP_SECTIONS` in pipeline/schema.py.
  */
 function trun_dvp_sections(): array {
 	$ppr = [
@@ -1075,6 +1058,7 @@ function trun_dvp_sections(): array {
 	return [
 		'passing'   => [
 			'label' => __( 'Passing', 'trinity-rundown' ),
+			'note'  => __( 'Interceptions are ranked the other way round, so 1 always favours the offense.', 'trinity-rundown' ),
 			'stats' => [
 				'pass_yds' => [
 					'label' => __( 'Pass yds', 'trinity-rundown' ),
@@ -1101,6 +1085,7 @@ function trun_dvp_sections(): array {
 		],
 		'receiving' => [
 			'label' => __( 'Receiving', 'trinity-rundown' ),
+			'note'  => __( 'A fullback counts as a running back. Long is the longest reception in each game, averaged -- not the season\'s longest play. A red zone target is one from the opponent\'s 20 or closer; two-point tries are not counted.', 'trinity-rundown' ),
 			'stats' => [
 				'rec'      => [
 					'label' => __( 'Rec', 'trinity-rundown' ),
@@ -1127,6 +1112,7 @@ function trun_dvp_sections(): array {
 		],
 		'rushing'   => [
 			'label' => __( 'Rushing', 'trinity-rundown' ),
+			'note'  => __( 'A fullback counts as a running back. Long is the longest run in each game, averaged -- not the season\'s longest play. A red zone carry is a designed run, so scrambles are not counted.', 'trinity-rundown' ),
 			'stats' => [
 				'carries'   => [
 					'label' => __( 'Car', 'trinity-rundown' ),

@@ -398,8 +398,9 @@ share and his TGT RATE, and keeps everything else.
 
 ## Defense vs. position
 
-The DvP tab, from `pipeline/metrics/dvp.py`. Three sections — Passing,
-Receiving, Rushing — and in each, both offenses. A side is two tables: what the
+From `pipeline/metrics/dvp.py`. Three sections — Passing, Receiving,
+Rushing — each at the top of the game tab of the same name, ahead of that
+tab's own tables, and in each, both offenses. A side is two tables: what the
 *other* team's defense allows at each role, and then this offense's players.
 The window is the season rule, so week 1 reads last season and weeks 2–4 carry
 the `n = X games` badge, like the Receiving and Rushing tabs.
@@ -492,7 +493,8 @@ the Scouting Notes.
 
 The columns DvP reads are checked apart from everyone else's
 (`players.DVP_COLUMNS`, `pbp.DVP_COLUMNS`). If one moves upstream, the build
-warns and the DvP tab is simply absent; every other tab renders as before.
+warns and the DvP sections are simply absent; the Passing, Receiving and
+Rushing tabs show their own tables as before.
 
 ---
 
