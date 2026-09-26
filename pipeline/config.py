@@ -141,6 +141,13 @@ FANTASY_ROWS: Final[int] = 5
 #: somewhere, and 100% off two kicks is not a hundred percent of anything.
 KICKER_MIN_FG_ATT: Final[int] = 5
 
+#: Player rows in the DvP tab's receiving and rushing sections. Receiving
+#: lists every pass-catching role, so it needs more room than the five-row
+#: passing table; rushing is the quarterback plus up to three backs, who have
+#: to clear `RUSHER_MIN_ATT_PER_GAME` like any other workload table.
+DVP_RECEIVING_ROWS: Final[int] = 8
+DVP_RUSHING_ROWS: Final[int] = 4
+
 #: Pace is measured in neutral game states only, because trailing teams hurry
 #: and leading teams stall -- which says more about the scoreboard than about
 #: the offense.

@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from pipeline import config
+from pipeline.metrics import dvp as dvp_metric
 from pipeline.metrics import efficiency as efficiency_metric
 from pipeline.metrics import passing as passing_metric
 from pipeline.metrics import records as records_metric
@@ -26,6 +27,8 @@ from pipeline.metrics import sample
 from pipeline.metrics import splits as splits_metric
 from pipeline.metrics.records import TeamRecords
 from pipeline.schema import (
+    DvpModule,
+    DvpSide,
     EfficiencyModule,
     FantasyModule,
     Game,
@@ -178,8 +181,8 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
     running-back table and nothing else, so each is caught on its own and
     reported as a warning rather than allowed to sink the build.
 
-    In week 1 `stats_season` points at the prior season, and the three season
-    modules are badged accordingly by `sample.describe`. The two split tables
+    In week 1 `stats_season` points at the prior season, and the season
+    modules (DvP among them) are badged accordingly by `sample.describe`. The two split tables
     read a trailing window instead and carry their own badge, which is why they
     do not take `basis` from the same call.
     """
@@ -227,6 +230,12 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
     except Exception as exc:  # noqa: BLE001
         warnings.append(f"Kicking splits unavailable ({source_season}): {exc}")
 
+    dvp = dvp_metric.DvpTables()
+    try:
+        dvp = dvp_metric.build(source_season, season)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Defense vs. position unavailable ({source_season}): {exc}")
+
     split_basis, split_badge = sample.trailing_describe()
 
     for game in built:
@@ -260,6 +269,16 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
                 home=backs.get(game.home.abbr, []),
             )
 
+        away_dvp, home_dvp = _dvp_sides(dvp, game)
+        if away_dvp or home_dvp:
+            game.dvp = DvpModule(
+                basis=basis,
+                badge=badge,
+                games_sampled=sampled,
+                away=away_dvp,
+                home=home_dvp,
+            )
+
         # The window is fixed, so `games_sampled` is the window rather than a
         # count of this matchup's games. What each row actually rests on
         # travels with the row, as its own home and away game counts.
@@ -288,6 +307,7 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
             ("receivers", receivers),
             ("backs", backs),
             ("fantasy splits", fantasy),
+            ("defense vs. position", dvp.allows),
             # Kickers are deliberately not checked. The others rest on "every
             # team has one", which holds for receivers and backs but not for a
             # kicker measured over a trailing window: a rookie has no history
@@ -297,6 +317,16 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
     )
 
     return warnings
+
+
+def _dvp_sides(
+    tables: dvp_metric.DvpTables, game: Game
+) -> tuple[DvpSide | None, DvpSide | None]:
+    """Each offense against the *other* side's defense, away first."""
+    return (
+        dvp_metric.side(tables, offense=game.away.abbr, defense=game.home.abbr),
+        dvp_metric.side(tables, offense=game.home.abbr, defense=game.away.abbr),
+    )
 
 
 def _recent_weeks(weekly: passing_metric.WeeklyTargets | None, team: str) -> list[int]:

@@ -483,6 +483,7 @@ function trun_admin_render_stats( array $game ): void {
 	$tables = trun_render_efficiency( $game )
 		. trun_render_passing( $game )
 		. trun_render_rushing( $game )
+		. trun_render_dvp( $game )
 		. trun_render_fantasy( $game )
 		. trun_render_kicking( $game );
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
+from pipeline.metrics import dvp as dvp_metric
 from pipeline.sources import pbp as pbp_source
 from pipeline.sources import players as players_source
 from pipeline.sources import snaps as snaps_source
@@ -69,6 +70,34 @@ def test_player_stats_still_have_every_column_we_read():
 
     assert set(frame.columns) >= players_source.REQUIRED_COLUMNS
     assert frame.height > 10_000
+
+
+def test_defense_vs_position_still_has_every_column_it_reads():
+    """Both halves, checked apart from the guards above because the code
+    checks them apart: a move here costs the DvP tab and nothing else."""
+    weekly = players_source.load(SEASON)
+    plays = pbp_source.load(SEASON)
+
+    assert set(weekly.columns) >= players_source.DVP_COLUMNS
+    assert set(plays.columns) >= pbp_source.DVP_COLUMNS
+
+
+def test_every_defense_is_ranked_and_the_totals_add_up_to_the_league():
+    """Summed across all 32 defenses, receiving yards allowed to WRs per game
+    times games has to equal what WRs caught all season. If an opponent code
+    failed to map, a defense would be missing or split and this would not
+    hold."""
+    games = dvp_metric.player_games(players_source.load(SEASON), pbp_source.load(SEASON))
+    table = dvp_metric.allowed(games)
+
+    assert len(table) == 32
+
+    defense_games = games.group_by("defense").agg(pl.col("game_id").n_unique().alias("n"))
+    played = dict(defense_games.iter_rows())
+    league = sum(table[d]["WR"]["rec_yds"] * played[d] for d in table)
+    caught = games.filter(pl.col("role") == "WR")["rec_yds"].sum()
+
+    assert league == pytest.approx(caught)
 
 
 def test_ppr_points_arrive_per_game_already_scored():

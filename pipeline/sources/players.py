@@ -53,6 +53,35 @@ REQUIRED_COLUMNS: Final[frozenset[str]] = frozenset(
 )
 
 
+#: The columns behind the defense-vs-position tables. Kept out of
+#: `REQUIRED_COLUMNS` for the same reason `pbp.SCORING_COLUMNS` is: if one of
+#: these moves upstream, the DvP tab goes dark and every other table stays up.
+#: `metrics/dvp.py` checks them itself.
+DVP_COLUMNS: Final[frozenset[str]] = frozenset(
+    {
+        "player_id",
+        "player_display_name",
+        "position",
+        "game_id",
+        "team",
+        "opponent_team",
+        "completions",
+        "attempts",
+        "passing_yards",
+        "passing_tds",
+        "passing_interceptions",
+        "receptions",
+        "targets",
+        "receiving_yards",
+        "receiving_tds",
+        "carries",
+        "rushing_yards",
+        "rushing_tds",
+        "fantasy_points_ppr",
+    }
+)
+
+
 class PlayerStatsUnavailable(RuntimeError):
     """Player stats could not be read, or no longer have the shape we parse."""
 

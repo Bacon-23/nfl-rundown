@@ -623,7 +623,8 @@
 .trun-table--passing,
 .trun-table--rushing,
 .trun-table--fantasy,
-.trun-table--kicking {
+.trun-table--kicking,
+.trun-table--dvp {
 	table-layout: fixed;
 }
 
@@ -632,7 +633,8 @@
 .trun-table--passing td,
 .trun-table--rushing td,
 .trun-table--fantasy td,
-.trun-table--kicking td {
+.trun-table--kicking td,
+.trun-table--dvp td {
 	text-align: right;
 }
 
@@ -653,7 +655,8 @@
 .trun-table--passing thead th,
 .trun-table--rushing thead th,
 .trun-table--fantasy thead th,
-.trun-table--kicking thead th {
+.trun-table--kicking thead th,
+.trun-table--dvp thead th {
 	text-align: right;
 }
 
@@ -673,7 +676,8 @@
 .trun-table--rushing thead th:first-child,
 .trun-table--fantasy thead th:first-child,
 .trun-table--fantasy thead th:nth-child(2),
-.trun-table--kicking thead th:first-child {
+.trun-table--kicking thead th:first-child,
+.trun-table--dvp thead th:first-child {
 	text-align: left;
 }
 
@@ -726,6 +730,76 @@
 
 .trun-status--questionable {
 	color: color-mix(in srgb, #6b5900 65%, currentColor);
+}
+
+/* ---------- Defense vs. position ---------- */
+
+.trun-dvp__section + .trun-dvp__section {
+	margin-block-start: 1.75rem;
+}
+
+.trun-dvp__heading {
+	font-size: 0.875rem;
+	font-weight: 700;
+	margin-block: 0 0.5rem;
+}
+
+.trun-dvp__side + .trun-dvp__side {
+	margin-block-start: 1.25rem;
+}
+
+.trun-dvp__matchup {
+	font-size: 0.8125rem;
+	font-weight: 600;
+	margin-block: 0 0.375rem;
+}
+
+.trun-dvp__side .trun-scroll + .trun-scroll {
+	margin-block-start: 0.5rem;
+}
+
+.trun-dvp__footnote {
+	margin-block: 1.25rem 0;
+	line-height: 1.5;
+}
+
+.trun-dvp__legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+	margin-block: 0 1rem;
+}
+
+.trun-dvp__legend .trun-dvp-tier {
+	padding: 0.0625rem 0.5rem;
+	border-radius: 0.75rem;
+}
+
+/*
+ * The three bands, as a tint behind the cell. Tinted toward transparent
+ * rather than written as flat colors, so they sit on whatever the theme
+ * paints underneath -- this one is dark unconditionally -- and the text over
+ * them stays currentColor. The rank number is always printed beside the
+ * value, so a reader who cannot separate green from red loses nothing.
+ */
+.trun-dvp-tier--soft {
+	background: color-mix(in srgb, #2e9e50 22%, transparent);
+}
+
+.trun-dvp-tier--mid {
+	background: color-mix(in srgb, #c28a00 20%, transparent);
+}
+
+.trun-dvp-tier--stout {
+	background: color-mix(in srgb, #c63a32 22%, transparent);
+}
+
+/* The rank of 32 beside a value, or the position beside a name. */
+.trun-cell__aside {
+	margin-inline-start: 0.25rem;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	color: var(--trun-muted);
 }
 
 /* ---------- Editorial ---------- */
@@ -829,7 +903,7 @@
 	 * the row header that said whose number it is. Each cell instead prints
 	 * its own heading, out of the data-label the renderer emits.
 	 *
-	 * These five lists are enumerated rather than generic, so a new
+	 * These lists are enumerated rather than generic, so a new
 	 * trun-table-- class has to be added to every one of them. Miss one and
 	 * the desktop table still looks right while the phone silently becomes an
 	 * unlabelled column of bare numbers.
@@ -838,7 +912,8 @@
 	.trun-table--passing thead,
 	.trun-table--rushing thead,
 	.trun-table--fantasy thead,
-	.trun-table--kicking thead {
+	.trun-table--kicking thead,
+	.trun-table--dvp thead {
 		display: none;
 	}
 
@@ -846,7 +921,8 @@
 	.trun-table--passing tr,
 	.trun-table--rushing tr,
 	.trun-table--fantasy tr,
-	.trun-table--kicking tr {
+	.trun-table--kicking tr,
+	.trun-table--dvp tr {
 		display: block;
 		padding-block: 0.625rem;
 		border-block-end: 1px solid var(--trun-border);
@@ -856,7 +932,8 @@
 	.trun-table--passing tbody th,
 	.trun-table--rushing tbody th,
 	.trun-table--fantasy tbody th,
-	.trun-table--kicking tbody th {
+	.trun-table--kicking tbody th,
+	.trun-table--dvp tbody th {
 		display: block;
 		padding: 0 0 0.25rem;
 		border: 0;
@@ -867,7 +944,8 @@
 	.trun-table--passing td,
 	.trun-table--rushing td,
 	.trun-table--fantasy td,
-	.trun-table--kicking td {
+	.trun-table--kicking td,
+	.trun-table--dvp td {
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
@@ -880,7 +958,8 @@
 	.trun-table--passing td::before,
 	.trun-table--rushing td::before,
 	.trun-table--fantasy td::before,
-	.trun-table--kicking td::before {
+	.trun-table--kicking td::before,
+	.trun-table--dvp td::before {
 		content: attr(data-label);
 		font-size: 0.6875rem;
 		letter-spacing: 0.06em;
@@ -903,7 +982,8 @@
 	.trun-table--passing,
 	.trun-table--rushing,
 	.trun-table--fantasy,
-	.trun-table--kicking {
+	.trun-table--kicking,
+	.trun-table--dvp {
 		table-layout: auto;
 	}
 

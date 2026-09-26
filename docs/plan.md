@@ -29,7 +29,7 @@ Outcome: a Python pipeline on GitHub Actions computes every number from public d
 | TPRR | **Free proxy, honestly labeled** — column renamed `TGT RATE` |
 | Freshness | **Freeze at publish** (snapshot + "stats as of" timestamp) |
 | Timeline | **Week 1** — kickoff is **2026-09-09** (NE @ SEA), 18 days out |
-| V1 scope | Everything except **DvP** (deferred to Phase 5) |
+| V1 scope | Everything except **DvP** (deferred to Phase 5; built 2026-09-26, see `docs/metrics.md`) |
 
 > **One open config value:** which book to publish. `ODDS_BOOK` in `pipeline/config.py` defaults to `draftkings` — change the string if you'd rather publish FanDuel or another. It's a one-line edit, not a rebuild.
 
@@ -361,7 +361,7 @@ capturing opening lines so Week 1 has real movement data.
 > front end rendered none of them, so Phase 4 had a content gap to close as
 > well as a styling one.
 
-**Phase 5 — go live, then extend.** Connect production GitHub Deployments and do a manual deploy; add the `production` environment secrets; switch the scheduled workflow's target. Then: DvP module; anytime TD props de-vigged into implied probabilities; "last 4 weeks" trend columns; paid routes-run adapter; line-movement sparkline.
+**Phase 5 — go live, then extend.** Connect production GitHub Deployments and do a manual deploy; add the `production` environment secrets; switch the scheduled workflow's target. Then: ~~DvP module~~ (built — `metrics/dvp.py`, the DvP tab); anytime TD props de-vigged into implied probabilities; "last 4 weeks" trend columns; paid routes-run adapter; line-movement sparkline.
 
 ---
 

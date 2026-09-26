@@ -11,8 +11,22 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from pipeline.build_week import _games_sampled, _missing_team_warnings, _recent_weeks
-from pipeline.schema import Game, Kickoff, Odds, ReceiverRow, Team, TeamEfficiency
+from pipeline.build_week import (
+    _dvp_sides,
+    _games_sampled,
+    _missing_team_warnings,
+    _recent_weeks,
+)
+from pipeline.metrics.dvp import DvpTables
+from pipeline.schema import (
+    DvpRoleRow,
+    Game,
+    Kickoff,
+    Odds,
+    ReceiverRow,
+    Team,
+    TeamEfficiency,
+)
 
 
 def game(away="NE", home="SEA"):
@@ -87,6 +101,25 @@ class TestGamesSampled:
     def test_neither_side_known_yields_no_count(self):
         """The badge then says "early season" rather than inventing a number."""
         assert _games_sampled({}, ("NE", "SEA")) is None
+
+
+class TestDvpSides:
+    def test_each_offense_meets_the_other_sides_defense(self):
+        """The away tab is the away offense against the *home* defense. Getting
+        this backwards would publish a team's matchup against itself."""
+        role = DvpRoleRow(role="WR")
+        tables = DvpTables(
+            allows={"SEA": {"receiving": [role]}, "NE": {"passing": [role]}},
+            players={},
+        )
+
+        away, home = _dvp_sides(tables, game("NE", "SEA"))
+
+        assert away.receiving.allows == [role] and away.passing is None
+        assert home.passing.allows == [role] and home.receiving is None
+
+    def test_no_tables_means_no_sides(self):
+        assert _dvp_sides(DvpTables(), game()) == (None, None)
 
 
 class TestRecentWeeks:
