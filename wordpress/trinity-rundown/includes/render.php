@@ -1013,19 +1013,34 @@ function trun_render_notes( array $game ): string {
 
 /**
  * Attribution and freshness. Both are conditions of publishing numbers.
+ *
+ * The odds credit describes the slate, not the first game on it. A game the
+ * book has taken down -- Thursday's, by Friday -- falls back to the nflverse
+ * line on its own, which is expected and not worth a page-wide notice. So the
+ * book is named if any game carries its lines, and the fallback is only
+ * announced when every game fell back, which means the Odds API itself failed.
  */
 function trun_render_footer( array $games ): string {
-	$first  = $games[0] ?? [];
-	$book   = trun_get( $first, 'odds.book_label', '' );
-	$as_of  = trun_get( $first, '_meta.updated_at', '' );
-	$source = trun_get( $first, 'odds.source', '' );
+	$first = $games[0] ?? [];
+	$as_of = trun_get( $first, '_meta.updated_at', '' );
 
+	$credited = $first;
+	$live     = false;
+	foreach ( $games as $game ) {
+		if ( 'odds_api' === trun_get( $game, 'odds.source', '' ) ) {
+			$credited = $game;
+			$live     = true;
+			break;
+		}
+	}
+
+	$book  = trun_get( $credited, 'odds.book_label', '' );
 	$parts = [];
 	if ( $book ) {
 		/* translators: %s: sportsbook the lines were taken from, e.g. DraftKings. */
 		$parts[] = sprintf( __( 'Odds: %s', 'trinity-rundown' ), $book );
 	}
-	if ( 'nflverse_fallback' === $source ) {
+	if ( ! $live && 'nflverse_fallback' === trun_get( $first, 'odds.source', '' ) ) {
 		$parts[] = __( 'consensus fallback in use', 'trinity-rundown' );
 	}
 	// Stored in UTC; shown in Eastern, the zone every kickoff on the page is
