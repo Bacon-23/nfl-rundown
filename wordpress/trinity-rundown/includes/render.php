@@ -324,19 +324,29 @@ function trun_game_tabs( array $game ): array {
  * One tab is not a choice, so it gets no strip.
  */
 function trun_render_tabs( array $game ): string {
-	$tabs = trun_game_tabs( $game );
+	return trun_render_tab_group( trun_game_tabs( $game ), trun_anchor( $game ) );
+}
 
+/**
+ * A tab group: the strip and its panels, from `slug => [label, html]`.
+ *
+ * Shared by the game tabs and the DvP tab's own Passing / Receiving / Rushing
+ * strip. `$anchor` prefixes every id, so a nested group needs one of its own
+ * -- the DvP group's Passing panel must not collide with the game's Passing
+ * tab. rundown.js wires each group separately, nested or not.
+ */
+function trun_render_tab_group( array $tabs, string $anchor, string $modifier = '' ): string {
 	if ( ! $tabs ) {
 		return '';
 	}
 
-	$anchor = trun_anchor( $game );
+	$list_class = 'trun-tablist' . ( '' === $modifier ? '' : ' trun-tablist--' . $modifier );
 
 	ob_start();
 	?>
 	<div class="trun-tabs" data-trun-tabs>
 		<?php if ( count( $tabs ) > 1 ) : ?>
-			<div class="trun-tablist" hidden>
+			<div class="<?php echo esc_attr( $list_class ); ?>" hidden>
 				<?php foreach ( $tabs as $slug => $tab ) : ?>
 					<button type="button" class="trun-tab" id="<?php echo esc_attr( $anchor . '--tab-' . $slug ); ?>"
 						data-trun-tab="<?php echo esc_attr( $slug ); ?>"
@@ -620,8 +630,8 @@ function trun_render_rushing( array $game ): string {
  * Defense vs. position: what each defense gives up, set against the offense
  * about to face it.
  *
- * Three sections -- passing, receiving, rushing -- and in each, both
- * offenses. A side is two tables: what the *other* team's defense allows per
+ * Three sections -- passing, receiving, rushing -- each its own sub-tab
+ * inside the DvP tab, and in each, both offenses. A side is two tables: what the *other* team's defense allows per
  * game at each role, with its rank of 32, and then this offense's players
  * with their own per-game lines. A player's cell is coloured by the rank the
  * defense holds at his role, which is the read the tab exists for.
@@ -629,7 +639,7 @@ function trun_render_rushing( array $game ): string {
  * The section and stat keys mirror `DVP_SECTIONS` in pipeline/schema.py.
  */
 function trun_render_dvp( array $game ): string {
-	$blocks = '';
+	$tabs = [];
 
 	foreach ( trun_dvp_sections() as $key => $section ) {
 		$sides = '';
@@ -640,15 +650,23 @@ function trun_render_dvp( array $game ): string {
 			}
 		}
 
+		// The heading duplicates the sub-tab's label once the strip is live,
+		// and the stylesheet hides it then. It stays for print and for a
+		// reader whose script never ran, where the sections stack.
 		if ( '' !== $sides ) {
-			$blocks .= '<div class="trun-dvp__section"><h4 class="trun-dvp__heading">'
-				. esc_html( $section['label'] ) . '</h4>' . $sides . '</div>';
+			$tabs[ $key ] = [
+				'label' => $section['label'],
+				'html'  => '<div class="trun-dvp__section"><h4 class="trun-dvp__heading">'
+					. esc_html( $section['label'] ) . '</h4>' . $sides . '</div>',
+			];
 		}
 	}
 
-	if ( '' === $blocks ) {
+	if ( ! $tabs ) {
 		return '';
 	}
+
+	$blocks = trun_render_tab_group( $tabs, trun_anchor( $game ) . '--dvp', 'sub' );
 
 	ob_start();
 	?>
