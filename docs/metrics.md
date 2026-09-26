@@ -132,6 +132,11 @@ the model scores some snaps that filter drops, penalties above all — 1,482 of
 substituting a zero for "no opinion" would drag every team toward neutral,
 which is a different claim from the one we are making.
 
+Ranked 1 to 32 across the league, highest PROE first, so 1st is the most
+pass-heavy offense relative to expectation. That is a tendency, not a grade:
+unlike EPA, a low PROE rank is not a bad one. Ties break on the team
+abbreviation so ranks do not swap between runs.
+
 ### Pace (seconds per play)
 
 Mean elapsed `game_seconds_remaining` between consecutive plays of the same

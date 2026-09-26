@@ -106,6 +106,7 @@ class TeamEfficiency(Base):
     pass_rate: float | None = None
     rush_rate: float | None = None
     proe: float | None = None
+    proe_rank: int | None = None
     pace: float | None = None
     plays_per_game: float | None = None
     epa_per_play: float | None = None
