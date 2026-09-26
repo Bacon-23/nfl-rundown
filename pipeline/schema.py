@@ -198,6 +198,69 @@ class KickerRow(Base):
     games: int | None = None
 
 
+#: Defense vs. position, one entry per section: the roles it ranks and the
+#: stat keys its cells carry, both in display order. The renderer mirrors these
+#: keys in `trun_dvp_sections()`, so renaming one is a contract change.
+DVP_SECTIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "passing": (("QB",), ("pass_yds", "comp", "att", "pass_td", "int", "ppr")),
+    "receiving": (
+        ("WR", "TE", "RB"),
+        ("rec", "rec_yds", "rec_td", "rz_tgt", "long_rec", "ppr"),
+    ),
+    "rushing": (
+        ("QB", "RB"),
+        ("carries", "rush_yds", "rush_td", "rz_car", "long_rush", "ppr"),
+    ),
+}
+
+
+class DvpCell(Base):
+    """What one defense allowed per game to one role, and where that ranks.
+
+    Rank 1 is always the defense that favours the offense most: the most
+    yards allowed, but the *fewest* interceptions.
+    """
+
+    value: float | None = None
+    rank: int | None = None
+
+
+class DvpRoleRow(Base):
+    role: str
+    stats: dict[str, DvpCell] = Field(default_factory=dict)
+
+
+class DvpPlayerRow(Base):
+    """One of the offense's players, with his own per-game line.
+
+    His cells carry no rank of their own. The renderer colours each one by the
+    opposing defense's rank for his `role`, read off the section's `allows`
+    rows, so the two can never disagree.
+    """
+
+    player: str
+    #: QB, WR, TE or RB -- a fullback is an RB here.
+    role: str
+    position: str | None = None
+    games: int | None = None
+    stats: dict[str, float | None] = Field(default_factory=dict)
+
+
+class DvpSection(Base):
+    #: The opposing defense, by role.
+    allows: list[DvpRoleRow] = Field(default_factory=list)
+    #: This offense's players.
+    players: list[DvpPlayerRow] = Field(default_factory=list)
+
+
+class DvpSide(Base):
+    """One offense against the other side's defense."""
+
+    passing: DvpSection | None = None
+    receiving: DvpSection | None = None
+    rushing: DvpSection | None = None
+
+
 class Module(Base):
     """A stat table plus the provenance a reader needs to weigh it."""
 
@@ -236,6 +299,13 @@ class KickingModule(Module):
     home: list[KickerRow] = Field(default_factory=list)
 
 
+class DvpModule(Module):
+    #: The away offense against the home defense.
+    away: DvpSide | None = None
+    #: The home offense against the away defense.
+    home: DvpSide | None = None
+
+
 class Game(Base):
     game_id: str
     season: int
@@ -264,9 +334,7 @@ class Game(Base):
     fantasy: FantasyModule | None = None
     kicking: KickingModule | None = None
 
-    #: Reserved so adding defense-vs-position in Phase 5 does not change the
-    #: shape of anything already shipped.
-    dvp: dict | None = None
+    dvp: DvpModule | None = None
 
 
 class WeekPayload(Base):

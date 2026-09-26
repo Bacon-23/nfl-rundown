@@ -330,6 +330,106 @@ share and his TGT RATE, and keeps everything else.
 
 ---
 
+## Defense vs. position
+
+The DvP tab, from `pipeline/metrics/dvp.py`. Three sections — Passing,
+Receiving, Rushing — and in each, both offenses. A side is two tables: what the
+*other* team's defense allows at each role, and then this offense's players.
+The window is the season rule, so week 1 reads last season and weeks 2–4 carry
+the `n = X games` badge, like the Passing and Rushing tabs.
+
+### Roles
+
+QB, WR, TE and RB, taken from the position on the weekly box score. **A
+fullback counts as a running back**: nobody ranks defenses against fullbacks,
+and his touches are backfield touches. Every other position is left out.
+
+### Allowed per game
+
+For defense D and role R: every stat that opponents at R put up in games
+against D, summed, divided by **D's** games. "All WRs" is every wide receiver
+who faced them, combined. The denominator is the defense's games, not the
+games in which it happened to face the role — a week it saw no tight end is a
+week it allowed a tight end nothing. Every defense has a figure for every role,
+zero where it faced nobody, because every defense is ranked on every row.
+
+The opponent comes from nflverse's `opponent_team`. It goes through
+`to_abbr()` like every other team code; an unmapped one would quietly split
+one defense into two. A live test holds that the 32 defenses' WR receiving
+yards, times their games, add back up to every yard a WR caught.
+
+### Rank and the colour bands
+
+1 to 32, **where 1 gives up the most** — the most favourable matchup for the
+offense. **Interceptions run the other way**: 1 is the defense that picks off
+the fewest, so rank 1 favours the offense in every column. Ties break on the
+team abbreviation, the rule PROE and EPA follow.
+
+Ranked on the unrounded value; only the published figure is rounded.
+
+The cell tint is a band: 1–11 green, 12–22 amber, 23–32 red. The rank number
+is always printed beside the value, so the band never rests on colour alone.
+
+### Columns
+
+| Section | Roles | Columns |
+|---|---|---|
+| Passing | QB | pass yds, comp, att, pass TD, INT, PPR |
+| Receiving | WR, TE, RB | rec, rec yds, rec TD, RZ tgt, long, PPR |
+| Rushing | QB, RB | carries, rush yds, rush TD, RZ car, long, PPR |
+
+The box-score columns are nflverse's weekly player stats, as they arrive.
+Carries include scrambles, because that is how the box score counts them.
+
+- **RZ tgt** — targets from the opponent's 20 or closer, counted from
+  play-by-play with the same rule as the Passing tab: a pass with a named
+  receiver, no sack, no two-point try.
+- **RZ car** — designed runs from the opponent's 20 or closer. Scrambles and
+  kneels are out and sneaks are in, the same rule as the Inside 5 column.
+- **Long** — the longest reception (or run) in each game, **averaged over
+  games**. It is what a Longest Reception prop prices. A season maximum
+  describes one play, and other sites that publish one will show a much
+  bigger number: against Jacksonville in 2025 our RB long rush is 14.9, while
+  the season's longest was 38. The long rush counts scrambles, to agree with
+  the carries beside it. A game in which nobody at the role caught a pass
+  counts as zero.
+- **PPR** — nflverse's `fantasy_points_ppr`, the scoring the Fantasy tab uses.
+  It is the role's **whole** total, so a running back's catches and carries
+  are both in it, and the same figure appears under Receiving and Rushing.
+
+### Player lines
+
+Each player's own figures, per game, over the games he has a box-score row
+in (`GP`). Each cell is tinted by the opposing defense's rank at *his* role —
+which is the read the tab exists for — and the rank printed beside it is the
+defense's, not his.
+
+- **Passing** — the starting quarterback, meaning the one who played most, the
+  same rule the Fantasy tab uses to pin him.
+- **Receiving** — pass catchers by targets per game, up to
+  `DVP_RECEIVING_ROWS` (8). `Tgt` is shown but not ranked.
+- **Rushing** — that quarterback, then backs above `RUSHER_MIN_ATT_PER_GAME`
+  by carries, up to `DVP_RUSHING_ROWS` (4) in all.
+
+Listing follows the other player tables: active roster only, under the team a
+player is on now, with his line from wherever he earned it.
+
+### What the mockup had that this does not
+
+The mockup's DvP table was written by hand: a different stat on every row, an
+Improving/Steady/Worsening trend and a free-text note. None of it is computed.
+A trend word would need a threshold that is an editorial call dressed up as
+data, and the pipeline never writes editorial fields — commentary belongs in
+the Scouting Notes.
+
+### When it fails
+
+The columns DvP reads are checked apart from everyone else's
+(`players.DVP_COLUMNS`, `pbp.DVP_COLUMNS`). If one moves upstream, the build
+warns and the DvP tab is simply absent; every other tab renders as before.
+
+---
+
 ## Home and away splits
 
 From `pipeline/metrics/splits.py`, over `nflreadpy.load_player_stats()` weekly

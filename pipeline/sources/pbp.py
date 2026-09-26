@@ -67,6 +67,27 @@ SCORING_COLUMNS: Final[frozenset[str]] = frozenset(
     }
 )
 
+#: The play-level half of defense vs. position: red zone looks and the
+#: longest gain in a game, neither of which the weekly box score carries.
+#: Checked by `metrics/dvp.py`, apart from everything else, for the same
+#: reason as `SCORING_COLUMNS`.
+DVP_COLUMNS: Final[frozenset[str]] = frozenset(
+    {
+        "season_type",
+        "game_id",
+        "play_type",
+        "qb_kneel",
+        "yardline_100",
+        "yards_gained",
+        "complete_pass",
+        "receiver_player_id",
+        "rusher_player_id",
+        "sack",
+        "qb_scramble",
+        "two_point_attempt",
+    }
+)
+
 #: Opponent's 20 or closer.
 RED_ZONE_YARDS: Final[int] = 20
 
@@ -232,6 +253,7 @@ def clear_cache() -> None:
 
 __all__ = [
     "REGULAR_SEASON",
+    "DVP_COLUMNS",
     "GOAL_LINE_YARDS",
     "RED_ZONE_YARDS",
     "REQUIRED_COLUMNS",

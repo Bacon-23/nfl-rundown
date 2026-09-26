@@ -291,6 +291,10 @@ function trun_game_tabs( array $game ): array {
 			'label' => __( 'Rushing', 'trinity-rundown' ),
 			'html'  => trun_render_rushing( $game ),
 		],
+		'dvp'     => [
+			'label' => __( 'DvP', 'trinity-rundown' ),
+			'html'  => trun_render_dvp( $game ),
+		],
 		'fantasy' => [
 			'label' => __( 'Fantasy', 'trinity-rundown' ),
 			'html'  => trun_render_fantasy( $game ),
@@ -613,6 +617,299 @@ function trun_render_rushing( array $game ): string {
 }
 
 /**
+ * Defense vs. position: what each defense gives up, set against the offense
+ * about to face it.
+ *
+ * Three sections -- passing, receiving, rushing -- and in each, both
+ * offenses. A side is two tables: what the *other* team's defense allows per
+ * game at each role, with its rank of 32, and then this offense's players
+ * with their own per-game lines. A player's cell is coloured by the rank the
+ * defense holds at his role, which is the read the tab exists for.
+ *
+ * The section and stat keys mirror `DVP_SECTIONS` in pipeline/schema.py.
+ */
+function trun_render_dvp( array $game ): string {
+	$blocks = '';
+
+	foreach ( trun_dvp_sections() as $key => $section ) {
+		$sides = '';
+		foreach ( [ 'away', 'home' ] as $side ) {
+			$data = trun_get( $game, 'dvp.' . $side . '.' . $key, [] );
+			if ( is_array( $data ) ) {
+				$sides .= trun_render_dvp_side( $game, $side, $data, $section );
+			}
+		}
+
+		if ( '' !== $sides ) {
+			$blocks .= '<div class="trun-dvp__section"><h4 class="trun-dvp__heading">'
+				. esc_html( $section['label'] ) . '</h4>' . $sides . '</div>';
+		}
+	}
+
+	if ( '' === $blocks ) {
+		return '';
+	}
+
+	ob_start();
+	?>
+	<section class="trun-module trun-module--dvp">
+		<h3 class="trun-module__heading">
+			<?php esc_html_e( 'Defense vs. Position', 'trinity-rundown' ); ?>
+			<?php echo trun_render_badge( $game, 'dvp' ); ?>
+		</h3>
+		<p class="trun-module__note trun-dvp__legend">
+			<span class="trun-dvp-tier trun-dvp-tier--soft"><?php esc_html_e( '1-11 gives up the most', 'trinity-rundown' ); ?></span>
+			<span class="trun-dvp-tier trun-dvp-tier--mid"><?php esc_html_e( '12-22', 'trinity-rundown' ); ?></span>
+			<span class="trun-dvp-tier trun-dvp-tier--stout"><?php esc_html_e( '23-32 gives up the least', 'trinity-rundown' ); ?></span>
+		</p>
+		<?php
+		// Built from escaped parts above.
+		echo $blocks;
+		?>
+		<p class="trun-module__note trun-dvp__footnote">
+			<?php esc_html_e( 'Allowed figures are what the defense gave up per game to every opponent at that role, combined, ranked 1 to 32 with 1 giving up the most. Interceptions are ranked the other way round, so 1 always favours the offense. Player lines are his own per game, and each cell is coloured by what this defense allows to his role; a fullback counts as a running back. Long is the longest gain in each game, averaged -- not the season\'s longest play. A red zone carry is a designed run, so scrambles are not counted.', 'trinity-rundown' ); ?>
+		</p>
+	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/**
+ * One offense against the other side's defense, within one section.
+ *
+ * The stat columns of the two tables line up: the defense table's Role column
+ * is exactly as wide as the player table's name, games and targets columns
+ * together, so a player's yards sit under the yards his opponent allows.
+ */
+function trun_render_dvp_side( array $game, string $side, array $data, array $section ): string {
+	$allows  = array_values( array_filter( (array) ( $data['allows'] ?? [] ), 'is_array' ) );
+	$players = array_values( array_filter( (array) ( $data['players'] ?? [] ), 'is_array' ) );
+
+	if ( ! $allows && ! $players ) {
+		return '';
+	}
+
+	$other   = 'away' === $side ? 'home' : 'away';
+	$offense = (string) trun_get( $game, $side . '.name', trun_get( $game, $side . '.abbr', '' ) );
+	$defense = (string) trun_get( $game, $other . '.name', trun_get( $game, $other . '.abbr', '' ) );
+
+	// The defense's rank at each role, which is what colours a player's cells.
+	$by_role = [];
+	foreach ( $allows as $row ) {
+		$by_role[ (string) ( $row['role'] ?? '' ) ] = is_array( $row['stats'] ?? null ) ? $row['stats'] : [];
+	}
+
+	// Receiving carries a targets column, so its stats give up a little width
+	// to keep the name column from wrapping every row onto three lines.
+	$with_targets  = isset( $section['stats']['rec'] );
+	$stat_width    = $with_targets ? '11%' : '12%';
+	$allow_columns = [
+		[
+			'label' => __( 'Role', 'trinity-rundown' ),
+			'width' => $with_targets ? '34%' : '28%',
+			'cell'  => static fn( $row ) => trun_dvp_role_label( (string) ( $row['role'] ?? '' ) ),
+		],
+	];
+
+	$player_columns = [
+		[
+			'label' => __( 'Player', 'trinity-rundown' ),
+			'width' => $with_targets ? '23%' : '21%',
+			'cell'  => static fn( $row ) => [
+				'text'  => (string) ( $row['player'] ?? '' ),
+				'aside' => (string) ( $row['position'] ?? '' ),
+			],
+		],
+		[
+			'label' => __( 'GP', 'trinity-rundown' ),
+			'width' => $with_targets ? '5%' : '7%',
+			'tip'   => __( 'Games he recorded a stat in, over the window in the badge.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => isset( $row['games'] ) ? (string) (int) $row['games'] : '--',
+		],
+	];
+
+	if ( $with_targets ) {
+		$player_columns[] = [
+			'label' => __( 'Tgt', 'trinity-rundown' ),
+			'width' => '6%',
+			'tip'   => __( 'Targets per game. The list is sorted on this.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['stats']['tgt'] ?? null, 1 ),
+		];
+	}
+
+	foreach ( $section['stats'] as $key => $stat ) {
+		$allow_columns[] = [
+			'label' => $stat['label'],
+			'width' => $stat_width,
+			'tip'   => $stat['tip'],
+			'cell'  => static fn( $row ) => trun_dvp_cell(
+				$row['stats'][ $key ]['value'] ?? null,
+				$row['stats'][ $key ]['rank'] ?? null
+			),
+		];
+
+		$player_columns[] = [
+			'label' => $stat['label'],
+			'width' => $stat_width,
+			'tip'   => $stat['tip'],
+			'cell'  => static fn( $row ) => trun_dvp_cell(
+				$row['stats'][ $key ] ?? null,
+				$by_role[ (string) ( $row['role'] ?? '' ) ][ $key ]['rank'] ?? null
+			),
+		];
+	}
+
+	/* translators: 1: offense team name, 2: defense team name. */
+	$matchup = sprintf( __( '%1$s offense against %2$s defense', 'trinity-rundown' ), $offense, $defense );
+
+	$html = '<div class="trun-dvp__side"><p class="trun-dvp__matchup">' . esc_html( $matchup ) . '</p>';
+
+	if ( $allows ) {
+		/* translators: %s: defense team name. */
+		$caption = sprintf( __( '%s allow, per game', 'trinity-rundown' ), $defense );
+		$html   .= trun_render_stat_table( $allow_columns, $allows, 'trun-table--dvp', $caption, $other );
+	}
+
+	if ( $players ) {
+		/* translators: %s: offense team name. */
+		$caption = sprintf( __( '%s players, per game', 'trinity-rundown' ), $offense );
+		$html   .= trun_render_stat_table( $player_columns, $players, 'trun-table--dvp', $caption, $side );
+	}
+
+	return $html . '</div>';
+}
+
+/**
+ * The three sections, their stat columns in display order, and what each
+ * column means. Keys match `DVP_SECTIONS` in pipeline/schema.py.
+ */
+function trun_dvp_sections(): array {
+	$ppr = [
+		'label' => __( 'PPR', 'trinity-rundown' ),
+		'tip'   => __( 'Full-PPR fantasy points per game, as nflverse scores them. It is the role\'s whole total, so a running back\'s catches and carries are both in it, and the same figure appears under Receiving and Rushing.', 'trinity-rundown' ),
+	];
+
+	return [
+		'passing'   => [
+			'label' => __( 'Passing', 'trinity-rundown' ),
+			'stats' => [
+				'pass_yds' => [
+					'label' => __( 'Pass yds', 'trinity-rundown' ),
+					'tip'   => __( 'Passing yards per game.', 'trinity-rundown' ),
+				],
+				'comp'     => [
+					'label' => __( 'Comp', 'trinity-rundown' ),
+					'tip'   => __( 'Completions per game.', 'trinity-rundown' ),
+				],
+				'att'      => [
+					'label' => __( 'Att', 'trinity-rundown' ),
+					'tip'   => __( 'Pass attempts per game.', 'trinity-rundown' ),
+				],
+				'pass_td'  => [
+					'label' => __( 'Pass TD', 'trinity-rundown' ),
+					'tip'   => __( 'Passing touchdowns per game.', 'trinity-rundown' ),
+				],
+				'int'      => [
+					'label' => __( 'INT', 'trinity-rundown' ),
+					'tip'   => __( 'Interceptions per game. Ranked the other way round: 1 is the defense that picks off the fewest, so 1 still favours the offense.', 'trinity-rundown' ),
+				],
+				'ppr'      => $ppr,
+			],
+		],
+		'receiving' => [
+			'label' => __( 'Receiving', 'trinity-rundown' ),
+			'stats' => [
+				'rec'      => [
+					'label' => __( 'Rec', 'trinity-rundown' ),
+					'tip'   => __( 'Receptions per game.', 'trinity-rundown' ),
+				],
+				'rec_yds'  => [
+					'label' => __( 'Rec yds', 'trinity-rundown' ),
+					'tip'   => __( 'Receiving yards per game.', 'trinity-rundown' ),
+				],
+				'rec_td'   => [
+					'label' => __( 'Rec TD', 'trinity-rundown' ),
+					'tip'   => __( 'Receiving touchdowns per game.', 'trinity-rundown' ),
+				],
+				'rz_tgt'   => [
+					'label' => __( 'RZ tgt', 'trinity-rundown' ),
+					'tip'   => __( 'Targets from the opponent\'s 20-yard line or closer, per game. Two-point tries are not counted.', 'trinity-rundown' ),
+				],
+				'long_rec' => [
+					'label' => __( 'Long', 'trinity-rundown' ),
+					'tip'   => __( 'The longest reception in each game, averaged over games -- the number a Longest Reception prop prices, not the season\'s longest play.', 'trinity-rundown' ),
+				],
+				'ppr'      => $ppr,
+			],
+		],
+		'rushing'   => [
+			'label' => __( 'Rushing', 'trinity-rundown' ),
+			'stats' => [
+				'carries'   => [
+					'label' => __( 'Car', 'trinity-rundown' ),
+					'tip'   => __( 'Carries per game, scrambles included, as the box score counts them.', 'trinity-rundown' ),
+				],
+				'rush_yds'  => [
+					'label' => __( 'Rush yds', 'trinity-rundown' ),
+					'tip'   => __( 'Rushing yards per game.', 'trinity-rundown' ),
+				],
+				'rush_td'   => [
+					'label' => __( 'Rush TD', 'trinity-rundown' ),
+					'tip'   => __( 'Rushing touchdowns per game.', 'trinity-rundown' ),
+				],
+				'rz_car'    => [
+					'label' => __( 'RZ car', 'trinity-rundown' ),
+					'tip'   => __( 'Designed runs from the opponent\'s 20-yard line or closer, per game. Scrambles and kneels are not counted; quarterback sneaks are.', 'trinity-rundown' ),
+				],
+				'long_rush' => [
+					'label' => __( 'Long', 'trinity-rundown' ),
+					'tip'   => __( 'The longest run in each game, scrambles included, averaged over games -- not the season\'s longest play.', 'trinity-rundown' ),
+				],
+				'ppr'       => $ppr,
+			],
+		],
+	];
+}
+
+/** "All WRs" rather than "WR": the row is every receiver who faced them. */
+function trun_dvp_role_label( string $role ): string {
+	$labels = [
+		'QB' => __( 'QB', 'trinity-rundown' ),
+		'WR' => __( 'All WRs', 'trinity-rundown' ),
+		'TE' => __( 'All TEs', 'trinity-rundown' ),
+		'RB' => __( 'All RBs', 'trinity-rundown' ),
+	];
+
+	return $labels[ $role ] ?? $role;
+}
+
+/**
+ * A value with the defense's rank beside it, tinted by band.
+ *
+ * The rank is always printed, so the band never rests on colour alone. No
+ * rank -- a player whose role the defense table lacks -- is the value alone.
+ */
+function trun_dvp_cell( $value, $rank ): array {
+	$cell = [ 'text' => trun_decimal( $value, 1 ) ];
+
+	if ( null !== $rank && is_numeric( $rank ) ) {
+		$cell['aside'] = (string) (int) $rank;
+		$cell['class'] = 'trun-dvp-tier trun-dvp-tier--' . trun_dvp_tier( (int) $rank );
+	}
+
+	return $cell;
+}
+
+/** 1-11 gives up the most, 23-32 the least; the middle third is neutral. */
+function trun_dvp_tier( int $rank ): string {
+	if ( $rank <= 11 ) {
+		return 'soft';
+	}
+
+	return $rank <= 22 ? 'mid' : 'stout';
+}
+
+/**
  * PPR at home and on the road, one table per side.
  *
  * The badge on this module says "last 17 games", which is a claim about the
@@ -882,11 +1179,14 @@ function trun_render_stat_table( array $columns, array $rows, string $table_clas
 			<?php foreach ( $rows as $row ) : ?>
 				<tr>
 				<?php foreach ( $columns as $index => $column ) : ?>
-					<?php $value = call_user_func( $column['cell'], $row ); ?>
+					<?php
+					$value = call_user_func( $column['cell'], $row );
+					$class = is_array( $value ) && ! empty( $value['class'] ) ? ' class="' . esc_attr( $value['class'] ) . '"' : '';
+					?>
 					<?php if ( 0 === $index ) : ?>
-						<th scope="row"><?php echo esc_html( $value ); ?></th>
+						<th scope="row"<?php echo $class; ?>><?php echo trun_cell_html( $value ); ?></th>
 					<?php else : ?>
-						<td data-label="<?php echo esc_attr( $column['label'] ); ?>"><?php echo esc_html( $value ); ?></td>
+						<td data-label="<?php echo esc_attr( $column['label'] ); ?>"<?php echo $class; ?>><?php echo trun_cell_html( $value ); ?></td>
 					<?php endif; ?>
 				<?php endforeach; ?>
 				</tr>
@@ -896,6 +1196,30 @@ function trun_render_stat_table( array $columns, array $rows, string $table_clas
 	</div>
 	<?php
 	return (string) ob_get_clean();
+}
+
+/**
+ * One cell's markup, escaped.
+ *
+ * A column's `cell` callback returns a plain string, which is most of them, or
+ * `[ 'text' => ..., 'aside' => ..., 'class' => ... ]` when the value needs
+ * something beside it -- a DvP rank chip, a player's position. Both parts are
+ * escaped here, so no callback ever hands this function raw HTML.
+ */
+function trun_cell_html( $value ): string {
+	if ( ! is_array( $value ) ) {
+		return esc_html( (string) $value );
+	}
+
+	$html = esc_html( (string) ( $value['text'] ?? '' ) );
+
+	if ( isset( $value['aside'] ) && '' !== (string) $value['aside'] ) {
+		$html .= ' <span class="trun-cell__aside">' . esc_html( (string) $value['aside'] ) . '</span>';
+	}
+
+	// One wrapper, so a stacked card's flex row keeps the value and its aside
+	// together on the right rather than spreading them across the width.
+	return '<span>' . $html . '</span>';
 }
 
 /**
