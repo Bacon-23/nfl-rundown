@@ -49,7 +49,10 @@
 	}
 
 	function wireTabs( group ) {
-		var list = group.querySelector( '.trun-tablist' );
+		// Its own strip only. Groups nest -- the DvP tab carries one -- and a
+		// group with a single tab renders no strip, so a plain descendant query
+		// would find the nested one and wire it twice.
+		var list = group.querySelector( ':scope > .trun-tablist' );
 		if ( ! list ) {
 			return;
 		}

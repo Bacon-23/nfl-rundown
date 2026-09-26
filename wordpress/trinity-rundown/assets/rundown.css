@@ -468,6 +468,52 @@
 	}
 }
 
+/*
+ * A strip inside a tab -- the DvP tab's Passing / Receiving / Rushing. A step
+ * down from the game's strip so the two never read as one row of choices:
+ * smaller, and the selected tab is an underline in the text colour rather
+ * than a team-coloured fill. Weight marks it too.
+ */
+.trun-tablist--sub {
+	/*
+	 * The tabs pull their underline 1px down over the strip's border, which
+	 * is a pixel of vertical overflow -- and with overflow-x set, the browser
+	 * drew a tiny vertical scrollbar at the strip's end for it.
+	 */
+	overflow-y: hidden;
+	gap: 0.125rem;
+	margin-block-end: 1rem;
+	border-block-end-color: var(--trun-border);
+}
+
+.trun-tablist--sub .trun-tab {
+	font-size: 0.75rem;
+	padding: 0.4375rem 0.75rem 0.375rem;
+	border-block-end-width: 2px;
+}
+
+.trun-tablist--sub .trun-tab[aria-selected="true"] {
+	color: inherit;
+	background: none;
+	box-shadow: none;
+	border-radius: 0;
+	border-block-end-color: currentColor;
+}
+
+/*
+ * Each sub-tab's panel opens with a heading naming the section. Once the
+ * strip is live -- the script unhides it -- the selected tab already says
+ * that, so the heading goes. Print and a reader without script still get it,
+ * because there the sections stack and it is all that separates them.
+ * Screen only: print hides the strip with CSS rather than the attribute, so
+ * without the media query this would strip the headings off paper too.
+ */
+@media screen {
+	.trun-tablist--sub:not([hidden]) ~ .trun-tabpanel .trun-dvp__heading {
+		display: none;
+	}
+}
+
 /* A panel starts right under the strip, not a module's worth of margin below it. */
 .trun-tabpanel > :first-child {
 	margin-block-start: 0;
