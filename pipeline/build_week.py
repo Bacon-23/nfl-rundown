@@ -21,6 +21,7 @@ from pipeline import config
 from pipeline.metrics import dvp as dvp_metric
 from pipeline.metrics import efficiency as efficiency_metric
 from pipeline.metrics import passing as passing_metric
+from pipeline.metrics import quarterbacks as quarterbacks_metric
 from pipeline.metrics import records as records_metric
 from pipeline.metrics import rushing as rushing_metric
 from pipeline.metrics import sample
@@ -35,6 +36,8 @@ from pipeline.schema import (
     KickingModule,
     Kickoff,
     PassingModule,
+    QbSide,
+    QuarterbackModule,
     RushingModule,
     Team,
     WeekPayload,
@@ -198,6 +201,13 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - one module must not sink the page
         warnings.append(f"Team efficiency unavailable ({source_season}): {exc}")
 
+    qbs = quarterbacks_metric.QbTables()
+    try:
+        qbs = quarterbacks_metric.build(source_season, season)
+        warnings.extend(qbs.warnings)
+    except Exception as exc:  # noqa: BLE001
+        warnings.append(f"Quarterback table unavailable ({source_season}): {exc}")
+
     # Loaded apart from the passing table so a failure here costs the week
     # columns and leaves the season columns beside them untouched.
     weekly = None
@@ -247,6 +257,16 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
         if rows:
             game.efficiency = EfficiencyModule(
                 basis=basis, badge=badge, games_sampled=sampled, rows=rows
+            )
+
+        away_qb, home_qb = _qb_sides(qbs, game)
+        if away_qb or home_qb:
+            game.quarterbacks = QuarterbackModule(
+                basis=basis,
+                badge=badge,
+                games_sampled=sampled,
+                away=away_qb,
+                home=home_qb,
             )
 
         if any(team in receivers for team in sides):
@@ -308,6 +328,7 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
             ("backs", backs),
             ("fantasy splits", fantasy),
             ("defense vs. position", dvp.allows),
+            ("quarterbacks", qbs.quarterbacks),
             # Kickers are deliberately not checked. The others rest on "every
             # team has one", which holds for receivers and backs but not for a
             # kicker measured over a trailing window: a rookie has no history
@@ -326,6 +347,16 @@ def _dvp_sides(
     return (
         dvp_metric.side(tables, offense=game.away.abbr, defense=game.home.abbr),
         dvp_metric.side(tables, offense=game.home.abbr, defense=game.away.abbr),
+    )
+
+
+def _qb_sides(
+    tables: quarterbacks_metric.QbTables, game: Game
+) -> tuple[QbSide | None, QbSide | None]:
+    """Each quarterback against the *other* side's defense, away first."""
+    return (
+        quarterbacks_metric.side(tables, offense=game.away.abbr, defense=game.home.abbr),
+        quarterbacks_metric.side(tables, offense=game.home.abbr, defense=game.away.abbr),
     )
 
 

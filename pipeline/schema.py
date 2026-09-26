@@ -261,6 +261,63 @@ class DvpSide(Base):
     rushing: DvpSection | None = None
 
 
+#: The quarterback tab's columns, in display order. The renderer mirrors these
+#: keys in `trun_qb_stats()`, so renaming one is a contract change. Rates are
+#: fractions like every other rate in the payload; `cpoe` is percentage points,
+#: as nflfastR publishes it; `adot` and `ypa` are yards.
+QB_STATS: tuple[str, ...] = (
+    "att",
+    "dropbacks",
+    "sack_rate",
+    "scramble_rate",
+    "adot",
+    "cpoe",
+    "cmp_pct",
+    "ypa",
+    "pressure_rate",
+    "blitz_rate",
+)
+
+
+class QbRow(Base):
+    """One offense's starting quarterback. None is a stat that could not be
+    measured -- no charted games yet, say -- not a zero."""
+
+    player: str
+    games: int | None = None
+    stats: dict[str, float | None] = Field(default_factory=dict)
+
+
+class QbDefenseRow(Base):
+    """What one defense allowed to every quarterback it faced, ranked of 32.
+
+    Pressure and blitz rates are what it *generated*. Rank 1 favours the
+    offense wherever that has a direction; see `metrics/quarterbacks.py`.
+    """
+
+    team: str
+    games: int | None = None
+    stats: dict[str, DvpCell] = Field(default_factory=dict)
+
+
+class QbSplitRow(Base):
+    """The starter's dropbacks with and without a blitz, from FTN's charting."""
+
+    split: Literal["blitz", "no_blitz"]
+    dropbacks: int = 0
+    cmp_pct: float | None = None
+    ypa: float | None = None
+    sack_rate: float | None = None
+
+
+class QbSide(Base):
+    """One offense's quarterback against the other side's defense."""
+
+    quarterback: QbRow | None = None
+    defense: QbDefenseRow | None = None
+    splits: list[QbSplitRow] = Field(default_factory=list)
+
+
 class Module(Base):
     """A stat table plus the provenance a reader needs to weigh it."""
 
@@ -287,6 +344,13 @@ class PassingModule(Module):
 class RushingModule(Module):
     away: list[RusherRow] = Field(default_factory=list)
     home: list[RusherRow] = Field(default_factory=list)
+
+
+class QuarterbackModule(Module):
+    #: The away quarterback against the home defense.
+    away: QbSide | None = None
+    #: The home quarterback against the away defense.
+    home: QbSide | None = None
 
 
 class FantasyModule(Module):
@@ -325,6 +389,10 @@ class Game(Base):
     #: outage cannot blank out a good injury report.
     injuries: list[InjuryRow] | None = None
     efficiency: EfficiencyModule | None = None
+    #: Quarterbacks. Its own key rather than `passing`, which has always
+    #: carried the pass catchers and is read under that name by stored
+    #: payloads and older plugins.
+    quarterbacks: QuarterbackModule | None = None
     passing: PassingModule | None = None
     rushing: RushingModule | None = None
 

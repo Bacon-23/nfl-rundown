@@ -88,6 +88,32 @@ DVP_COLUMNS: Final[frozenset[str]] = frozenset(
     }
 )
 
+#: The quarterback tab's dropback-level lines. Checked by
+#: `metrics/quarterbacks.py`, apart from everything else, for the same reason
+#: as `SCORING_COLUMNS`.
+QB_COLUMNS: Final[frozenset[str]] = frozenset(
+    {
+        "season_type",
+        "game_id",
+        "play_id",
+        "posteam",
+        "defteam",
+        "play_type",
+        "qb_dropback",
+        "two_point_attempt",
+        "passer_player_id",
+        "passer_player_name",
+        "rusher_player_id",
+        "rusher_player_name",
+        "sack",
+        "qb_scramble",
+        "complete_pass",
+        "passing_yards",
+        "air_yards",
+        "cpoe",
+    }
+)
+
 #: Opponent's 20 or closer.
 RED_ZONE_YARDS: Final[int] = 20
 
@@ -255,6 +281,7 @@ __all__ = [
     "REGULAR_SEASON",
     "DVP_COLUMNS",
     "GOAL_LINE_YARDS",
+    "QB_COLUMNS",
     "RED_ZONE_YARDS",
     "REQUIRED_COLUMNS",
     "SCORING_COLUMNS",
