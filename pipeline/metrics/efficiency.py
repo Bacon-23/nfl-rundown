@@ -1,7 +1,8 @@
 """Team efficiency: pass and rush rate, PROE, pace, plays per game, EPA.
 
-Computed for all 32 teams in one pass, because EPA rank is a league-wide
-statement and cannot be worked out from the two teams in a matchup.
+Computed for all 32 teams in one pass, because the PROE and EPA ranks are
+league-wide statements and cannot be worked out from the two teams in a
+matchup.
 
 Units, stated once and asserted in the tests: **every rate is a fraction**.
 Pass rate 0.542 means 54.2%, and PROE 0.029 means +2.9%. nflfastR publishes
@@ -42,6 +43,10 @@ def team_efficiency(frame: pl.DataFrame) -> dict[str, TeamEfficiency]:
         volume.join(_proe(frame), on="posteam", how="left")
         .join(_pace(plays), on="posteam", how="left")
         .with_columns(plays_per_game=pl.col("plays") / pl.col("games"))
+        # Most pass-heavy first. A tendency rather than a grade, but ranked the
+        # same way as EPA below, ties broken on the abbreviation.
+        .sort(["proe", "posteam"], descending=[True, False], nulls_last=True)
+        .with_row_index("proe_rank", offset=1)
         # Ranked best-first, ties broken on the team abbreviation so two teams
         # with identical EPA do not swap ranks between runs.
         .sort(["epa_per_play", "posteam"], descending=[True, False], nulls_last=True)
@@ -54,6 +59,7 @@ def team_efficiency(frame: pl.DataFrame) -> dict[str, TeamEfficiency]:
             pass_rate=_round(row["pass_rate"], 4),
             rush_rate=_round(_complement(row["pass_rate"]), 4),
             proe=_round(row["proe"], 4),
+            proe_rank=None if row["proe"] is None else int(row["proe_rank"]),
             pace=_round(row["pace"], 1),
             plays_per_game=_round(row["plays_per_game"], 1),
             epa_per_play=_round(row["epa_per_play"], 3),

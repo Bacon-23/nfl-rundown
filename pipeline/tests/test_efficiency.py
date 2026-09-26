@@ -255,6 +255,42 @@ class TestEpaRank:
         assert first["SEA"].epa_rank == second["SEA"].epa_rank == 2
 
 
+class TestProeRank:
+    def test_the_most_pass_heavy_offense_ranks_first(self):
+        table = team_efficiency(
+            frame(
+                play(posteam="SEA", pass_oe=-3.0),
+                play(posteam="NE", pass_oe=1.0),
+                play(posteam="KC", pass_oe=5.0),
+            )
+        )
+
+        assert (table["KC"].proe_rank, table["NE"].proe_rank, table["SEA"].proe_rank) == (
+            1,
+            2,
+            3,
+        )
+
+    def test_a_tie_is_broken_the_same_way_on_every_run(self):
+        built = frame(play(posteam="SEA", pass_oe=2.0), play(posteam="NE", pass_oe=2.0))
+        first, second = team_efficiency(built), team_efficiency(built)
+
+        assert first["NE"].proe_rank == second["NE"].proe_rank == 1
+        assert first["SEA"].proe_rank == second["SEA"].proe_rank == 2
+
+    def test_a_team_with_no_scored_plays_is_unranked_but_keeps_its_epa_rank(self):
+        table = team_efficiency(
+            frame(
+                play(posteam="SEA", pass_oe=None, epa=0.3),
+                play(posteam="NE", pass_oe=1.0, epa=0.1),
+            )
+        )
+
+        assert table["SEA"].proe_rank is None
+        assert table["NE"].proe_rank == 1
+        assert table["SEA"].epa_rank == 1
+
+
 class TestEmptyInput:
     def test_a_frame_with_no_offensive_plays_yields_an_empty_table(self):
         """Empty, not an exception: the rest of the page is still publishable."""

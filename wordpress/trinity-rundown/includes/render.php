@@ -388,9 +388,9 @@ function trun_render_efficiency( array $game ): string {
 			'cell'  => static fn( $row ) => trun_percent( $row['rush_rate'] ?? null ),
 		],
 		[
-			'label' => __( 'PROE', 'trinity-rundown' ),
-			'tip'   => __( "Pass rate over expected, against nflfastR's model. Full season.", 'trinity-rundown' ),
-			'cell'  => static fn( $row ) => trun_percent( $row['proe'] ?? null, 1, true ),
+			'label' => __( 'PROE (rk)', 'trinity-rundown' ),
+			'tip'   => __( "Pass rate over expected, against nflfastR's model. Full season. Ranked 1 to 32 across the league, most pass-heavy first.", 'trinity-rundown' ),
+			'cell'  => 'trun_proe_cell',
 		],
 		[
 			'label' => __( 'Pace (sec/play)', 'trinity-rundown' ),
@@ -1198,6 +1198,28 @@ function trun_epa_cell( array $row ): string {
 
 	$text = ( $epa > 0 ? '+' : '' ) . number_format( (float) $epa, 2 );
 	$rank = $row['epa_rank'] ?? null;
+
+	if ( $rank && is_numeric( $rank ) ) {
+		$text .= ' (' . trun_ordinal( (int) $rank ) . ')';
+	}
+
+	return $text;
+}
+
+/**
+ * The PROE cell: the number and where it ranks, e.g. "+2.9% (4th)".
+ *
+ * 1st is the most pass-heavy offense, which is a tendency rather than a grade.
+ * A payload from before the rank existed shows the number alone.
+ */
+function trun_proe_cell( array $row ): string {
+	$text = trun_percent( $row['proe'] ?? null, 1, true );
+
+	if ( '--' === $text ) {
+		return $text;
+	}
+
+	$rank = $row['proe_rank'] ?? null;
 
 	if ( $rank && is_numeric( $rank ) ) {
 		$text .= ' (' . trun_ordinal( (int) $rank ) . ')';
