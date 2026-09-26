@@ -932,7 +932,8 @@ function trun_render_dvp_section( array $game, string $key ): string {
 		echo $blocks;
 		?>
 		<p class="trun-module__note trun-dvp__footnote">
-			<?php esc_html_e( 'Allowed figures are what the defense gave up per game to every opponent at that role, combined, ranked 1 to 32 with 1 giving up the most. Interceptions are ranked the other way round, so 1 always favours the offense. Player lines are his own per game, and each cell is coloured by what this defense allows to his role; a fullback counts as a running back. Long is the longest gain in each game, averaged -- not the season\'s longest play. A red zone carry is a designed run, so scrambles are not counted.', 'trinity-rundown' ); ?>
+			<?php esc_html_e( 'Allowed figures are what the defense gave up per game to every opponent at that role, combined, ranked 1 to 32 with 1 giving up the most. Player lines are his own per game, and each cell is coloured by what this defense allows to his role.', 'trinity-rundown' ); ?>
+			<?php echo esc_html( $section['note'] ); ?>
 		</p>
 	</section>
 	<?php
@@ -1045,8 +1046,8 @@ function trun_render_dvp_side( array $game, string $side, array $data, array $se
 }
 
 /**
- * The three sections, their stat columns in display order, and what each
- * column means. Keys match `DVP_SECTIONS` in pipeline/schema.py.
+ * The three sections, their stat columns in display order, what each column
+ * means, and the footnote sentences only that section needs. Keys match `DVP_SECTIONS` in pipeline/schema.py.
  */
 function trun_dvp_sections(): array {
 	$ppr = [
@@ -1057,6 +1058,7 @@ function trun_dvp_sections(): array {
 	return [
 		'passing'   => [
 			'label' => __( 'Passing', 'trinity-rundown' ),
+			'note'  => __( 'Interceptions are ranked the other way round, so 1 always favours the offense.', 'trinity-rundown' ),
 			'stats' => [
 				'pass_yds' => [
 					'label' => __( 'Pass yds', 'trinity-rundown' ),
@@ -1083,6 +1085,7 @@ function trun_dvp_sections(): array {
 		],
 		'receiving' => [
 			'label' => __( 'Receiving', 'trinity-rundown' ),
+			'note'  => __( 'A fullback counts as a running back. Long is the longest reception in each game, averaged -- not the season\'s longest play. A red zone target is one from the opponent\'s 20 or closer; two-point tries are not counted.', 'trinity-rundown' ),
 			'stats' => [
 				'rec'      => [
 					'label' => __( 'Rec', 'trinity-rundown' ),
@@ -1109,6 +1112,7 @@ function trun_dvp_sections(): array {
 		],
 		'rushing'   => [
 			'label' => __( 'Rushing', 'trinity-rundown' ),
+			'note'  => __( 'A fullback counts as a running back. Long is the longest run in each game, averaged -- not the season\'s longest play. A red zone carry is a designed run, so scrambles are not counted.', 'trinity-rundown' ),
 			'stats' => [
 				'carries'   => [
 					'label' => __( 'Car', 'trinity-rundown' ),
