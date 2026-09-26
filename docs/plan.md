@@ -296,7 +296,7 @@ WordPress.com accounts sign in via WP.com SSO, where the Application Passwords U
 
 - **Server-side PHP** emits full HTML for all 16 games, so Google indexes the writeups. `rundown.js` only enhances: every control it drives renders `hidden` until it runs.
 - Each matchup is a `<details>` element that the reader clicks to expand or collapse, on every screen size. All sixteen ship closed, and any number can be open at once. The browser does the collapsing; an "Expand all" button above the week is the script's.
-- Inside a game, the team bar, odds bar and records are always shown; everything below them sits in tabs -- **Rundown** (Trinity notes, player props, side/total leans, TD leans, prediction, injuries; the default), **Team**, **Passing** (quarterbacks), **Receiving**, **Rushing**, **DvP**, **Fantasy**, **Kicking**. `trun_game_tabs()` is the one place a new module is assigned a tab, and a tab with no data is dropped. Without JavaScript, and in print, every tab's content shows stacked.
+- Inside a game, the team bar, odds bar and records are always shown; everything below them sits in tabs -- **Rundown** (Trinity notes, player props, side/total leans, TD leans, prediction, injuries; the default), **Team**, **Passing** (quarterbacks), **Receiving**, **Rushing** (each of those three opens with its defense-vs-position section), **Fantasy**, **Kicking**. `trun_game_tabs()` is the one place a new module is assigned a tab, and a tab with no data is dropped. Without JavaScript, and in print, every tab's content shows stacked.
 - Scoped `.trundown-*` class prefix; per-game team colors injected as CSS custom properties from `teamcolors.csv`.
 - Below 640 px the stat tables reflow into stacked cards. Print stylesheet included.
 - Each panel's `<summary>` carries the matchup, the spread and the kickoff time, so a closed week still reads as a schedule.
@@ -361,7 +361,7 @@ capturing opening lines so Week 1 has real movement data.
 > front end rendered none of them, so Phase 4 had a content gap to close as
 > well as a styling one.
 
-**Phase 5 — go live, then extend.** Connect production GitHub Deployments and do a manual deploy; add the `production` environment secrets; switch the scheduled workflow's target. Then: ~~DvP module~~ (built — `metrics/dvp.py`, the DvP tab); anytime TD props de-vigged into implied probabilities; "last 4 weeks" trend columns; paid routes-run adapter; line-movement sparkline.
+**Phase 5 — go live, then extend.** Connect production GitHub Deployments and do a manual deploy; add the `production` environment secrets; switch the scheduled workflow's target. Then: ~~DvP module~~ (built — `metrics/dvp.py`, shown atop the Passing / Receiving / Rushing tabs); anytime TD props de-vigged into implied probabilities; "last 4 weeks" trend columns; paid routes-run adapter; line-movement sparkline.
 
 ---
 

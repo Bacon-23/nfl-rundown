@@ -481,10 +481,12 @@ function trun_admin_stats_basis( array $game ): string {
  */
 function trun_admin_render_stats( array $game ): void {
 	$tables = trun_render_efficiency( $game )
+		. trun_render_dvp_section( $game, 'passing' )
 		. trun_render_quarterbacks( $game )
+		. trun_render_dvp_section( $game, 'receiving' )
 		. trun_render_passing( $game )
+		. trun_render_dvp_section( $game, 'rushing' )
 		. trun_render_rushing( $game )
-		. trun_render_dvp( $game )
 		. trun_render_fantasy( $game )
 		. trun_render_kicking( $game );
 
