@@ -375,6 +375,13 @@
 	display: flex;
 	gap: 0.25rem;
 	overflow-x: auto;
+	/*
+	 * The tabs pull their underline 1px down over the strip's border (see
+	 * .trun-tab), which is a pixel of vertical overflow -- and with
+	 * overflow-x set, the browser drew a tiny vertical scrollbar at the end of
+	 * the strip for it. Sideways scrolling is the only kind this strip does.
+	 */
+	overflow-y: hidden;
 	scrollbar-width: thin;
 	border-block-end: 1px solid var(--trun-rule);
 	margin-block-end: 1.25rem;
@@ -475,12 +482,6 @@
  * than a team-coloured fill. Weight marks it too.
  */
 .trun-tablist--sub {
-	/*
-	 * The tabs pull their underline 1px down over the strip's border, which
-	 * is a pixel of vertical overflow -- and with overflow-x set, the browser
-	 * drew a tiny vertical scrollbar at the strip's end for it.
-	 */
-	overflow-y: hidden;
 	gap: 0.125rem;
 	margin-block-end: 1rem;
 	border-block-end-color: var(--trun-border);
