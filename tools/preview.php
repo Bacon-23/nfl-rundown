@@ -178,6 +178,7 @@ function preview_notes(): array {
 		'side_total'   => 'Home -3, under 44.5',
 		'td_leans'     => 'A lean, another lean, and a third (sprinkle)',
 		'prediction'   => 'Home 23, Away 20',
+		'author'       => 'jared_block',
 	];
 }
 
