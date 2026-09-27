@@ -257,7 +257,11 @@ class TRUN_CLI {
 		$table = [];
 
 		foreach ( $rows as $row ) {
-			$notes   = json_decode( (string) $row->notes_json, true );
+			$notes = json_decode( (string) $row->notes_json, true );
+			// A sign-off with nothing written is not notes.
+			if ( is_array( $notes ) ) {
+				unset( $notes['author'] );
+			}
 			$table[] = [
 				'game_id'    => $row->game_id,
 				'locked'     => $row->locked ? 'yes' : 'no',

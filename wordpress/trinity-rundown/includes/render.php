@@ -1601,7 +1601,28 @@ function trun_render_notes( array $game ): string {
 			. '</section>';
 	}
 
+	// The sign-off belongs to the writing, so a game with no notes gets none.
+	$authors = trun_note_authors();
+	$author  = isset( $notes['author'] ) ? (string) $notes['author'] : '';
+	if ( '' !== $out && isset( $authors[ $author ] ) ) {
+		$out .= '<p class="trun-notes__byline">&mdash; ' . esc_html( $authors[ $author ] ) . '</p>';
+	}
+
 	return $out;
+}
+
+/**
+ * Who can sign a game's notes, slug => display name.
+ *
+ * The slug is what notes_json stores under `author`, so a name can be
+ * respelled here without touching a stored row. The writer's screen offers
+ * exactly this list and drops anything else on save.
+ */
+function trun_note_authors(): array {
+	return [
+		'jared_block'   => 'Jared Block',
+		'joshua_riemer' => 'Joshua Riemer',
+	];
 }
 
 /**

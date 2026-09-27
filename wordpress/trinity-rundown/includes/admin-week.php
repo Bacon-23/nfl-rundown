@@ -364,6 +364,18 @@ function trun_admin_render_game( object $row ): void {
 		<?php trun_admin_render_stats( $game ); ?>
 
 		<div class="trun-adm__notes">
+			<?php $author_id = trun_admin_field_id( $game_id, 'notes', 'author' ); ?>
+			<p class="trun-adm__field">
+				<label for="<?php echo esc_attr( $author_id ); ?>"><?php esc_html_e( 'Written by', 'trinity-rundown' ); ?></label>
+				<select
+					id="<?php echo esc_attr( $author_id ); ?>"
+					name="<?php echo esc_attr( trun_admin_field_name( $game_id, 'notes', 'author' ) ); ?>">
+					<option value=""><?php esc_html_e( '— Not set —', 'trinity-rundown' ); ?></option>
+					<?php foreach ( trun_note_authors() as $slug => $name ) : ?>
+						<option value="<?php echo esc_attr( $slug ); ?>"<?php selected( (string) ( $notes['author'] ?? '' ), $slug ); ?>><?php echo esc_html( $name ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</p>
 			<?php foreach ( trun_admin_note_fields() as $key => $spec ) : ?>
 				<?php $field_id = trun_admin_field_id( $game_id, 'notes', $key ); ?>
 				<p class="trun-adm__field">
@@ -733,6 +745,13 @@ function trun_admin_clean_notes( $raw ): array {
 		if ( '' !== $value ) {
 			$notes[ $key ] = $value;
 		}
+	}
+
+	// The sign-off is a slug from a fixed list, never free text: anything not
+	// on the list -- including "not set" -- stores no key, like an empty box.
+	$author = ( is_array( $raw ) && isset( $raw['author'] ) ) ? (string) $raw['author'] : '';
+	if ( isset( trun_note_authors()[ $author ] ) ) {
+		$notes['author'] = $author;
 	}
 
 	return $notes;

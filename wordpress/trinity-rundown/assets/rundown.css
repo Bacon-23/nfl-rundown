@@ -826,6 +826,12 @@
 	margin-block-end: 0;
 }
 
+.trun-notes__byline {
+	margin-block: 1rem 1.5rem;
+	font-style: italic;
+	color: var(--trun-muted);
+}
+
 .trun-footer {
 	font-size: 0.8125rem;
 	color: var(--trun-muted);
