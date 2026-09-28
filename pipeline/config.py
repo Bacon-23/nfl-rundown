@@ -173,6 +173,12 @@ WP_REST_NAMESPACE: Final[str] = "trinity-rundown/v1"
 
 HTTP_TIMEOUT: Final[float] = 30.0
 HTTP_RETRIES: Final[int] = 3
+#: Seconds to wait after a 429 with no Retry-After, times the attempt number.
+#: WordPress.com rate-limits the site under game-day load, and that does not
+#: clear in the two seconds a 5xx backoff allows.
+RATE_LIMIT_BACKOFF: Final[int] = 15
+#: The most a Retry-After header is allowed to hold a build up.
+RATE_LIMIT_MAX_WAIT: Final[int] = 60
 USER_AGENT: Final[str] = "trinity-rundown/0.1 (+https://github.com/Bacon-23/nfl-rundown)"
 
 ESPN_INJURIES_URL: Final[str] = (
