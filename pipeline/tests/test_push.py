@@ -68,6 +68,50 @@ def test_health_retries_a_5xx_and_succeeds():
 
 
 @respx.mock
+def test_health_retries_a_429_and_succeeds():
+    """WordPress.com rate-limits the site on a busy Sunday. Two builds on
+    2026-09-27 died on a single 429 from /health; the next hour's run was fine."""
+    route = respx.get(HEALTH).mock(
+        side_effect=[
+            httpx.Response(429, text="Too Many Requests"),
+            httpx.Response(200, json={"ok": True}),
+        ]
+    )
+
+    assert push.health() == {"ok": True}
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_a_429_waits_longer_than_a_5xx(monkeypatch):
+    """A rate limit will not clear in two seconds, so it gets its own backoff."""
+    waits = []
+    monkeypatch.setattr(push.time, "sleep", waits.append)
+    respx.get(HEALTH).mock(return_value=httpx.Response(429, text="slow down"))
+
+    with pytest.raises(push.PushError, match="429"):
+        push.health()
+
+    assert waits == [config.RATE_LIMIT_BACKOFF, 2 * config.RATE_LIMIT_BACKOFF]
+
+
+@respx.mock
+def test_a_429_honours_retry_after_up_to_the_cap(monkeypatch):
+    waits = []
+    monkeypatch.setattr(push.time, "sleep", waits.append)
+    respx.get(HEALTH).mock(
+        side_effect=[
+            httpx.Response(429, headers={"Retry-After": "7"}),
+            httpx.Response(429, headers={"Retry-After": "3600"}),
+            httpx.Response(200, json={"ok": True}),
+        ]
+    )
+
+    assert push.health() == {"ok": True}
+    assert waits == [7, config.RATE_LIMIT_MAX_WAIT]
+
+
+@respx.mock
 def test_health_gives_up_after_the_configured_attempts():
     route = respx.get(HEALTH).mock(return_value=httpx.Response(502, text="down"))
 
@@ -124,6 +168,19 @@ def test_push_retries_a_5xx_and_succeeds():
     route = respx.post(WEEK).mock(
         side_effect=[
             httpx.Response(503, text="unavailable"),
+            httpx.Response(200, json={"inserted": 0, "updated": 16, "openers_set": 0}),
+        ]
+    )
+
+    assert push.push_week(_payload())["updated"] == 16
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_push_retries_a_429_and_succeeds():
+    route = respx.post(WEEK).mock(
+        side_effect=[
+            httpx.Response(429, text="Too Many Requests"),
             httpx.Response(200, json={"inserted": 0, "updated": 16, "openers_set": 0}),
         ]
     )

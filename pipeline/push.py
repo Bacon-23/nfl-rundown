@@ -32,6 +32,50 @@ class TransientPushError(PushError):
     buries the one message that tells the operator what to fix.
     """
 
+    def __init__(self, message: str, *, rate_limited: bool = False, wait: float | None = None):
+        super().__init__(message)
+        self.rate_limited = rate_limited
+        #: Seconds the site asked us to wait (Retry-After), already capped.
+        self.wait = wait
+
+
+def _raise_if_transient(response: httpx.Response) -> None:
+    """Route a 5xx or a 429 into the retry loop rather than out to the caller.
+
+    A 429 is WordPress.com rate-limiting the site -- two builds on 2026-09-27
+    died on one from /health, with a green run the hour after. It is transient
+    like a 5xx, but it needs a longer wait, and Retry-After says how long.
+    """
+    status = response.status_code
+
+    if status == 429:
+        raise TransientPushError(
+            f"WordPress returned 429 (rate limited): {response.text[:300]}",
+            rate_limited=True,
+            wait=_retry_after(response),
+        )
+
+    if status >= 500:
+        raise TransientPushError(f"WordPress returned {status}: {response.text[:300]}")
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    """Retry-After in seconds, capped. None when absent or not a number."""
+    try:
+        seconds = float(response.headers.get("Retry-After", ""))
+    except ValueError:
+        return None
+    return min(max(seconds, 0), config.RATE_LIMIT_MAX_WAIT)
+
+
+def _delay(attempt: int, exc: Exception) -> float:
+    """How long to back off before the attempt after `attempt`."""
+    if isinstance(exc, TransientPushError) and exc.rate_limited:
+        if exc.wait is not None:
+            return exc.wait
+        return config.RATE_LIMIT_BACKOFF * attempt
+    return 2 ** attempt
+
 
 def endpoint(path: str) -> str:
     """Build a route URL, refusing to name a host the token must not reach.
@@ -70,7 +114,7 @@ def _headers() -> dict[str, str]:
 def _with_retries(what: str, attempt_once):
     """Run `attempt_once`, retrying transient failures with a backoff.
 
-    Retries only on network errors and 5xx. A 401, 403, or 422 means the
+    Retries only on network errors, 5xx and 429. A 401, 403, or 422 means the
     request itself is wrong, and repeating it will not help -- it only delays
     the message the operator actually needs.
     """
@@ -83,7 +127,7 @@ def _with_retries(what: str, attempt_once):
             last_error = exc
             if attempt == config.HTTP_RETRIES:
                 break
-            delay = 2 ** attempt
+            delay = _delay(attempt, exc)
             log.warning(
                 "%s attempt %d failed (%s); retrying in %ds.", what, attempt, exc, delay
             )
@@ -105,12 +149,9 @@ def health() -> dict:
         with httpx.Client(timeout=config.HTTP_TIMEOUT) as client:
             response = client.get(endpoint("health"), headers=_headers())
 
-            # 5xx is the site having a bad moment; raising here routes it into
-            # the retry rather than out to the caller as a final answer.
-            if response.status_code >= 500:
-                raise TransientPushError(
-                    f"WordPress returned {response.status_code}: {response.text[:300]}"
-                )
+            # 5xx or 429 is the site having a bad moment; raising here routes
+            # it into the retry rather than out to the caller as a final answer.
+            _raise_if_transient(response)
 
             _raise_for_status(response)
             return response.json()
@@ -121,7 +162,7 @@ def health() -> dict:
 def push_week(payload: WeekPayload) -> dict:
     """POST a week, retrying transient failures with a backoff.
 
-    Retries only on network errors and 5xx. A 401, 403, or 422 means the
+    Retries only on network errors, 5xx and 429. A 401, 403, or 422 means the
     request itself is wrong, and repeating it will not help.
     """
     body = payload.wire()
@@ -134,10 +175,7 @@ def push_week(payload: WeekPayload) -> dict:
             try:
                 response = client.post(url, headers=_headers(), json=body)
 
-                if response.status_code >= 500:
-                    raise TransientPushError(
-                        f"WordPress returned {response.status_code}: {response.text[:300]}"
-                    )
+                _raise_if_transient(response)
 
                 _raise_for_status(response)
                 result = response.json()
@@ -161,7 +199,7 @@ def push_week(payload: WeekPayload) -> dict:
                 last_error = exc
                 if attempt == config.HTTP_RETRIES:
                     break
-                delay = 2 ** attempt
+                delay = _delay(attempt, exc)
                 log.warning("Push attempt %d failed (%s); retrying in %ds.", attempt, exc, delay)
                 time.sleep(delay)
 
