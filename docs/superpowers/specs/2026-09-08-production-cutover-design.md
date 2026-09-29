@@ -59,6 +59,22 @@ and 13:50 UTC Tuesday, and all three show as `skipped`.
   against the first unattended build to meet the hand-taken lines, as it did
   for Week 2.
 
+**Section F executed for Week 4**, taking F1-F3 rather than steps 16-19. The
+cron was left running through Monday 2026-09-28. The run before rollover,
+36519066859 at 03:52 UTC Tuesday, came before the Monday-nighter's kickoff +
+4h. It still auto-detected week 3 and reported `0 openers recorded`. There
+was no scheduled run between 03:52 and 10:20 UTC.
+
+- **F1**: the first Week 4 build was scheduled run 36554999017 at 10:20 UTC
+  Tuesday 2026-09-29. It read `Target: production | odds: live`,
+  auto-detected week 4, and reported `16 inserted, 0 updated, 16 openers
+  recorded`. Its `payload-production` artifact shows `odds.source: odds_api`
+  and `book: draftkings` on **all sixteen games individually**, with no null
+  odds fields. Spreads run from ARI -1.5 to BAL -11.5 and totals from 38.5 to
+  51.5. The IND at WAS London game has a book line like the rest.
+- **F2 and F3** were not needed. No game fell back, so nothing was
+  re-dispatched and `reopen` was not run.
+
 Written 2026-09-08, the day before Week 1 kickoff, and corrected in place as it
 was executed -- each dated note below marks somewhere the document was wrong
 when it met the live system.
