@@ -288,6 +288,11 @@
  *
  * Only start edges are drawn, and the first row and column draw nothing, so
  * the cell borders never double up with the container's.
+ *
+ * Which cells are first-row and first-column depends on the column count, so
+ * the rules that strip edges are scoped to the width that uses them. Unscoped,
+ * the three-column rules out-ranked the two-column ones on phones and erased
+ * the line above Spread and the one between Spread and Total.
  */
 .trun-oddsbar {
 	display: grid;
@@ -312,21 +317,23 @@
 	border-block-start: 1px solid var(--trun-border);
 }
 
-.trun-oddsbar:not(.trun-oddsbar--records) .trun-oddsbar__cell:nth-child(3n + 1) {
-	border-inline-start: 0;
-}
+@container not (max-width: 640px) {
+	.trun-oddsbar:not(.trun-oddsbar--records) .trun-oddsbar__cell:nth-child(3n + 1) {
+		border-inline-start: 0;
+	}
 
-.trun-oddsbar:not(.trun-oddsbar--records) .trun-oddsbar__cell:nth-child(-n + 3) {
-	border-block-start: 0;
-}
+	.trun-oddsbar:not(.trun-oddsbar--records) .trun-oddsbar__cell:nth-child(-n + 3) {
+		border-block-start: 0;
+	}
 
-.trun-oddsbar--records .trun-oddsbar__cell:nth-child(4n + 1) {
-	border-inline-start: 0;
-}
+	.trun-oddsbar--records .trun-oddsbar__cell:nth-child(4n + 1) {
+		border-inline-start: 0;
+	}
 
-/* Four records over four columns is a single row. */
-.trun-oddsbar--records .trun-oddsbar__cell {
-	border-block-start: 0;
+	/* Four records over four columns is a single row. */
+	.trun-oddsbar--records .trun-oddsbar__cell {
+		border-block-start: 0;
+	}
 }
 
 .trun-oddsbar__label {
@@ -1011,11 +1018,6 @@
 	}
 
 	/* Two columns means a different first column and first row. */
-	.trun-oddsbar .trun-oddsbar__cell {
-		border-inline-start: 1px solid var(--trun-border);
-		border-block-start: 1px solid var(--trun-border);
-	}
-
 	.trun-oddsbar .trun-oddsbar__cell:nth-child(2n + 1) {
 		border-inline-start: 0;
 	}
