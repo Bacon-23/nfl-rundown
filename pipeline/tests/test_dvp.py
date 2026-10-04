@@ -407,6 +407,27 @@ class TestPlayerLines:
 
         assert [row.player for row in result["NE"]["passing"]] == ["STARTER"]
 
+    def test_a_named_starter_beats_the_quarterback_who_played_most(self):
+        result = lines_of(
+            [
+                line("backup", game="g1", team="NE", position="QB"),
+                line("backup", game="g2", team="NE", position="QB"),
+                line("starter", game="g3", team="NE", position="QB", carries=2),
+            ],
+            starters={"NE": "starter"},
+        )
+
+        assert [row.player for row in result["NE"]["passing"]] == ["STARTER"]
+        assert result["NE"]["rushing"][0].player == "STARTER"
+
+    def test_a_named_starter_with_no_line_leaves_the_usual_pick(self):
+        result = lines_of(
+            [line("qb1", team="NE", position="QB")],
+            starters={"NE": "nobody"},
+        )
+
+        assert [row.player for row in result["NE"]["passing"]] == ["QB1"]
+
     def test_rushing_is_the_quarterback_then_backs_above_the_floor(self):
         result = lines_of(
             [

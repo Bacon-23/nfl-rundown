@@ -259,6 +259,16 @@ class TestWhoAppears:
 
         assert table["SEA"][0].player == "STARTER"
 
+    def test_a_named_starter_is_pinned_over_the_one_who_played_more(self):
+        table = splits(
+            *season_of("backup", 2025, 8, position="QB", points=12.0),
+            *season_of("starter", 2025, 2, position="QB", points=10.0),
+            starters={"SEA": "starter"},
+        )
+
+        assert table["SEA"][0].player == "STARTER"
+        assert [row.player for row in table["SEA"]].count("BACKUP") == 0
+
     def test_a_team_with_no_quarterback_simply_has_one_row_fewer(self):
         table = splits(*season_of("wr", 2025, 5, position="WR"))
 

@@ -286,18 +286,82 @@ class TestRanks:
         assert (ranked["AAA"]["ypa"], ranked["BBB"]["ypa"]) == (1, 2)
 
 
+def chosen(frame, current, overrides=None):
+    return qb.starters(frame, current, overrides or {})[0]
+
+
 class TestStarters:
     def test_the_starter_has_the_most_dropbacks(self):
         frame = qb.dropbacks(plays(throw("q1"), throw("q2"), throw("q2")))
-        assert qb.starters(frame, {"q1": "SEA", "q2": "SEA"}) == {"SEA": "q2"}
+        assert chosen(frame, {"q1": "SEA", "q2": "SEA"}) == {"SEA": "q2"}
 
     def test_he_is_listed_under_the_team_he_is_on_now(self):
         frame = qb.dropbacks(plays(throw("q1", offense="MIN")))
-        assert qb.starters(frame, {"q1": "SEA"}) == {"SEA": "q1"}
+        assert chosen(frame, {"q1": "SEA"}) == {"SEA": "q1"}
 
     def test_a_quarterback_off_every_roster_is_dropped(self):
         frame = qb.dropbacks(plays(throw("q1"), throw("q1"), throw("q2")))
-        assert qb.starters(frame, {"q2": "SEA"}) == {"SEA": "q2"}
+        assert chosen(frame, {"q2": "SEA"}) == {"SEA": "q2"}
+
+    def test_whoever_started_the_latest_game_beats_the_volume_leader(self):
+        """The backup who filled in for three weeks has more dropbacks than
+        the starter who is back, and is still the backup."""
+        early = ("2026_01_MIN_NYG", "2026_02_MIN_CHI", "2026_03_MIN_GB")
+        frame = qb.dropbacks(
+            plays(
+                *[throw("backup", game=g, offense="MIN") for g in early for _ in range(3)],
+                *[throw("starter", game="2026_04_MIN_DET", offense="MIN") for _ in range(3)],
+                throw("backup", game="2026_04_MIN_DET", offense="MIN"),
+            )
+        )
+        assert chosen(frame, {"backup": "MIN", "starter": "MIN"}) == {"MIN": "starter"}
+
+    def test_a_latest_starter_who_has_left_falls_back_to_volume(self):
+        frame = qb.dropbacks(
+            plays(
+                throw("q1", game="2026_01_SEA_NE"),
+                throw("q1", game="2026_01_SEA_NE"),
+                throw("q2", game="2026_01_SEA_NE"),
+                throw("gone", game="2026_02_SEA_LA"),
+            )
+        )
+        assert chosen(frame, {"q1": "SEA", "q2": "SEA"}) == {"SEA": "q1"}
+
+    def test_the_latest_starter_counts_only_for_the_team_he_is_on_now(self):
+        """Traded after his last start: his old team's latest game says
+        nothing about who starts for his new one."""
+        frame = qb.dropbacks(
+            plays(
+                throw("mover", game="2026_02_ARI_LA", offense="ARI"),
+                throw("min1", game="2026_01_MIN_GB", offense="MIN"),
+            )
+        )
+        current = {"mover": "MIN", "min1": "MIN"}
+        assert chosen(frame, current) == {"MIN": "min1"}
+
+    def test_an_override_beats_the_latest_start(self):
+        frame = qb.dropbacks(
+            plays(
+                throw("starter", game="2026_01_MIN_GB", offense="MIN"),
+                throw("backup", game="2026_02_MIN_CHI", offense="MIN"),
+            )
+        )
+        current = {"starter": "MIN", "backup": "MIN"}
+        assert chosen(frame, current, {"MIN": "starter"}) == {"MIN": "starter"}
+
+    def test_an_override_off_the_teams_roster_is_ignored_with_a_warning(self):
+        frame = qb.dropbacks(plays(throw("q1", offense="MIN"), throw("q2", offense="SEA")))
+        picked, warnings = qb.starters(frame, {"q1": "MIN", "q2": "SEA"}, {"MIN": "q2"})
+        assert picked == {"MIN": "q1", "SEA": "q2"}
+        assert len(warnings) == 1 and "MIN" in warnings[0] and "q2" in warnings[0]
+
+    def test_an_override_with_no_dropbacks_is_ignored_with_a_warning(self):
+        """No dropbacks means no line to print; last week's starter beats a
+        blank row."""
+        frame = qb.dropbacks(plays(throw("q1", offense="MIN")))
+        picked, warnings = qb.starters(frame, {"q1": "MIN", "fresh": "MIN"}, {"MIN": "fresh"})
+        assert picked == {"MIN": "q1"}
+        assert len(warnings) == 1 and "fresh" in warnings[0]
 
     def test_his_row_carries_every_stat_and_his_pressure(self):
         frame = qb.dropbacks(plays(throw("q1")))

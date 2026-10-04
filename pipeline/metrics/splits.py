@@ -146,6 +146,7 @@ def fantasy_splits(
     *,
     limit: int = config.FANTASY_ROWS,
     min_side: int = config.SPLIT_MIN_GAMES_PER_SIDE,
+    starters: dict[str, str] | None = None,
 ) -> dict[str, list[SplitRow]]:
     """PPR at home and on the road, by team, quarterback first.
 
@@ -187,12 +188,13 @@ def fantasy_splits(
                     else None
                 ),
                 "_games": games,
+                "_id": row["player_id"],
             }
         )
 
     table: dict[str, list[SplitRow]] = {}
     for team, players in by_team.items():
-        ordered = _pin_quarterback(players, limit)
+        ordered = _pin_quarterback(players, limit, (starters or {}).get(team))
         if ordered:
             table[team] = [
                 SplitRow(**{k: v for k, v in player.items() if not k.startswith("_")})
@@ -202,8 +204,12 @@ def fantasy_splits(
     return table
 
 
-def _pin_quarterback(players: list[dict], limit: int) -> list[dict]:
-    """The busiest quarterback, then the highest scorers beneath him.
+def _pin_quarterback(
+    players: list[dict], limit: int, starter: str | None = None
+) -> list[dict]:
+    """The starter, then the highest scorers beneath him. The starter is the
+    one `starter` names when he is here -- the quarterback tab's pick -- and
+    otherwise the busiest quarterback.
 
     If a team has no qualifying quarterback the row is simply absent and the
     table is one shorter. Inventing a starter out of a backup's two appearances
@@ -220,7 +226,12 @@ def _pin_quarterback(players: list[dict], limit: int) -> list[dict]:
     # Appearances first, points second: the starter is the one who plays every
     # week, not the backup who threw two touchdowns in garbage time.
     quarterbacks.sort(
-        key=lambda p: (-p["_games"], -(p["ppr_per_game"] or 0.0), p["player"])
+        key=lambda p: (
+            p["_id"] != starter,
+            -p["_games"],
+            -(p["ppr_per_game"] or 0.0),
+            p["player"],
+        )
     )
     return [quarterbacks[0], *others[: limit - 1]]
 
@@ -329,10 +340,14 @@ def _prepared(stats_season: int) -> pl.DataFrame:
     return trailing(with_venue(weekly, home_by_game(seasons)))
 
 
-def build_fantasy(stats_season: int, roster_season: int) -> dict[str, list[SplitRow]]:
+def build_fantasy(
+    stats_season: int, roster_season: int, starters: dict[str, str] | None = None
+) -> dict[str, list[SplitRow]]:
     """Pull every feed the fantasy table needs and produce it."""
     return fantasy_splits(
-        _prepared(stats_season), snaps_source.current_teams(roster_season)
+        _prepared(stats_season),
+        snaps_source.current_teams(roster_season),
+        starters=starters,
     )
 
 

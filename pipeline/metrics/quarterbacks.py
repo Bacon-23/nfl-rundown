@@ -27,6 +27,7 @@ from typing import Final
 
 import polars as pl
 
+from pipeline import config
 from pipeline.schema import QB_STATS, DvpCell, QbDefenseRow, QbRow, QbSide, QbSplitRow
 from pipeline.sources import charting as charting_source
 from pipeline.sources import pbp as pbp_source
@@ -67,6 +68,8 @@ class QbTables:
     costs its column and nothing else."""
 
     quarterbacks: dict[str, QbRow] = field(default_factory=dict)
+    #: Team to its starter's gsis id, so the other tabs list the same man.
+    starters: dict[str, str] = field(default_factory=dict)
     splits: dict[str, list[QbSplitRow]] = field(default_factory=dict)
     defenses: dict[str, QbDefenseRow] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
@@ -235,19 +238,61 @@ def _rounded(stats: dict[str, float | None]) -> dict[str, float | None]:
     }
 
 
-def starters(frame: pl.DataFrame, current_team: dict[str, str]) -> dict[str, str]:
-    """Each team's starter, by gsis id: the quarterback on its roster today
-    with the most dropbacks in the window. Ties break on the id, so a rerun
-    never swaps them."""
-    counts = frame.filter(pl.col("qb_id").is_not_null()).group_by("qb_id").agg(n=pl.len())
+def starters(
+    frame: pl.DataFrame,
+    current_team: dict[str, str],
+    overrides: dict[str, str] = config.STARTING_QB_OVERRIDES,
+) -> tuple[dict[str, str], list[str]]:
+    """Each team's starter, by gsis id, and a warning per override ignored.
+
+    In order: the team's entry in `overrides`; whoever took the most dropbacks
+    in the team's latest game; the quarterback with the most dropbacks in the
+    window. Only a quarterback on the team's roster today qualifies at any
+    step, and only one with a dropback, since without one he has no line.
+
+    Season volume alone gets it wrong all year once a backup has filled in:
+    the starter returns with fewer dropbacks than the man he replaced. Ties
+    break on the id, so a rerun never swaps them.
+    """
+    known = frame.filter(pl.col("qb_id").is_not_null())
+    counts = known.group_by("qb_id").agg(n=pl.len())
 
     best: dict[str, tuple[int, str]] = {}
     for row in counts.iter_rows(named=True):
         team = current_team.get(row["qb_id"])
         if team is not None and (row["n"], row["qb_id"]) > best.get(team, (-1, "")):
             best[team] = (row["n"], row["qb_id"])
+    chosen = {team: qb_id for team, (_, qb_id) in best.items()}
 
-    return {team: qb_id for team, (_, qb_id) in best.items()}
+    # A game id opens with season and week, so the greatest is the latest.
+    latest = known.filter(pl.col("game_id") == pl.col("game_id").max().over("posteam"))
+    in_latest = latest.group_by(["posteam", "qb_id"]).agg(n=pl.len())
+    last_start: dict[str, tuple[int, str]] = {}
+    for row in in_latest.iter_rows(named=True):
+        team = row["posteam"]
+        if current_team.get(row["qb_id"]) == team and (row["n"], row["qb_id"]) > last_start.get(
+            team, (-1, "")
+        ):
+            last_start[team] = (row["n"], row["qb_id"])
+    chosen.update({team: qb_id for team, (_, qb_id) in last_start.items()})
+
+    warnings: list[str] = []
+    played = set(counts["qb_id"].to_list())
+    for team, qb_id in overrides.items():
+        if current_team.get(qb_id) != team:
+            warnings.append(
+                f"Starting QB override for {team} names {qb_id}, "
+                f"who is not on {team}'s active roster; ignored."
+            )
+        elif qb_id not in played:
+            warnings.append(
+                f"Starting QB override for {team} names {qb_id}, "
+                "who has no dropbacks to show yet; ignored."
+            )
+        else:
+            chosen[team] = qb_id
+
+    return chosen, warnings
 
 
 def quarterback_rows(
@@ -350,10 +395,12 @@ def build(stats_season: int, roster_season: int) -> QbTables:
     except Exception as exc:  # noqa: BLE001
         warnings.append(f"Pressure rates unavailable ({stats_season}): {exc}")
 
-    chosen = starters(frame, snaps_source.current_teams(roster_season))
+    chosen, override_warnings = starters(frame, snaps_source.current_teams(roster_season))
+    warnings.extend(override_warnings)
 
     return QbTables(
         quarterbacks=quarterback_rows(frame, qb_pressure, chosen),
+        starters=chosen,
         splits={team: split_rows(frame, qb_id) for team, qb_id in chosen.items()},
         defenses=defense_rows(frame, def_pressure),
         warnings=warnings,
