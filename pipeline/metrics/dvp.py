@@ -279,6 +279,7 @@ def player_lines(
     receiving_rows: int = config.DVP_RECEIVING_ROWS,
     rushing_rows: int = config.DVP_RUSHING_ROWS,
     min_carries: float = config.RUSHER_MIN_ATT_PER_GAME,
+    starters: dict[str, str] | None = None,
 ) -> dict[str, dict[str, list[DvpPlayerRow]]]:
     """Each offense's players, with their own per-game lines.
 
@@ -286,7 +287,8 @@ def player_lines(
     active roster -- the same rule as every other player table. His line is
     his, wherever he earned it; the module's badge says which season.
 
-    - Passing: the starting quarterback, meaning the one who played most.
+    - Passing: the starting quarterback -- the one `starters` names, which is
+      the quarterback tab's pick, or failing that the one who played most.
     - Receiving: pass catchers by targets per game.
     - Rushing: that quarterback, then backs above the workload floor.
     """
@@ -306,9 +308,10 @@ def player_lines(
 
     table: dict[str, dict[str, list[DvpPlayerRow]]] = {}
     for team, players in by_team.items():
+        named = (starters or {}).get(team)
         quarterbacks = sorted(
             (p for p in players if p["role"] == "QB"),
-            key=lambda p: (-p["games"], -p["ppr"], p["player"]),
+            key=lambda p: (p["player_id"] != named, -p["games"], -p["ppr"], p["player"]),
         )
         starter = quarterbacks[:1]
 
@@ -362,12 +365,16 @@ def side(tables: DvpTables, *, offense: str, defense: str) -> DvpSide | None:
     return DvpSide(**sections) if sections else None
 
 
-def build(stats_season: int, roster_season: int) -> DvpTables:
+def build(
+    stats_season: int, roster_season: int, starters: dict[str, str] | None = None
+) -> DvpTables:
     """Pull every feed the DvP tab needs and produce both halves."""
     games = player_games(players_source.load(stats_season), pbp_source.load(stats_season))
     return DvpTables(
         allows=allows_rows(allowed(games)),
-        players=player_lines(games, snaps_source.current_teams(roster_season)),
+        players=player_lines(
+            games, snaps_source.current_teams(roster_season), starters=starters
+        ),
     )
 
 

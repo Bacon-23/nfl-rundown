@@ -136,6 +136,14 @@ SPLIT_MIN_GAMES_PER_SIDE: Final[int] = 3
 #: almost every team and the four spots below him are the point of the table.
 FANTASY_ROWS: Final[int] = 5
 
+#: Team abbreviation to the gsis id of the quarterback to list as its starter,
+#: whatever the play-by-play says. The default rule -- whoever took the most
+#: dropbacks in the team's latest game -- is right until a starter comes back
+#: from injury, because no game shows him starting yet. Add him here for that
+#: week and take the entry out once he has started. The id is the `gsis_id`
+#: column of the nflverse roster, which reads like "00-00NNNNN".
+STARTING_QB_OVERRIDES: Final[dict[str, str]] = {}
+
 #: Field goal attempts a kicker needs across the whole window before his
 #: accuracy is worth printing. A kicker signed in December has gone 2-for-2
 #: somewhere, and 100% off two kicks is not a hundred percent of anything.

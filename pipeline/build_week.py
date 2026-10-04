@@ -230,7 +230,7 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
 
     fantasy: dict = {}
     try:
-        fantasy = splits_metric.build_fantasy(source_season, season)
+        fantasy = splits_metric.build_fantasy(source_season, season, qbs.starters)
     except Exception as exc:  # noqa: BLE001
         warnings.append(f"Fantasy splits unavailable ({source_season}): {exc}")
 
@@ -242,7 +242,7 @@ def _attach_stats(built: list[Game], season: int, week: int) -> list[str]:
 
     dvp = dvp_metric.DvpTables()
     try:
-        dvp = dvp_metric.build(source_season, season)
+        dvp = dvp_metric.build(source_season, season, qbs.starters)
     except Exception as exc:  # noqa: BLE001
         warnings.append(f"Defense vs. position unavailable ({source_season}): {exc}")
 
