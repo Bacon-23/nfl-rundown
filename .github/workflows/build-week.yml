@@ -88,13 +88,30 @@ jobs:
         # becomes NaN -- and the inequality is then always true, so the probe
         # used to run on dry runs too. A scheduled run carries no inputs at
         # all and always pushes, so it is named explicitly.
+        #
+        # A rate limit that outlasts the probe's retries exits 75. On a
+        # schedule that skips the hour with a warning instead of failing the
+        # run -- the cron is its own retry, and three builds in a week went red
+        # on a 429 that had cleared by the next one. A manual dispatch still
+        # fails, because someone is watching it and nothing was pushed.
+        id: health
         if: github.event_name == 'schedule' || inputs.push
         env:
           TRINITY_RUNDOWN_TOKEN: ${{ secrets.TRINITY_RUNDOWN_TOKEN }}
           WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
-        run: python -m pipeline.push --health
+          EVENT: ${{ github.event_name }}
+        run: |
+          code=0
+          python -m pipeline.push --health || code=$?
+          if [ "$code" -eq 75 ] && [ "$EVENT" = "schedule" ]; then
+            echo "::warning title=Skipped this hour::WordPress.com rate-limited the health probe on every attempt. Nothing was built or pushed; the next scheduled run will try again."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$code"
 
       - name: Build and push
+        if: steps.health.outputs.skip != 'true'
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           TRINITY_RUNDOWN_TOKEN: ${{ secrets.TRINITY_RUNDOWN_TOKEN }}
