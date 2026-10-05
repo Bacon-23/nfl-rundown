@@ -229,7 +229,7 @@ def parse(
 
     for abbr, rows in by_team.items():
         rows.sort(key=lambda r: (-r.edge, r.player))
-        by_team[abbr] = rows[: config.TOP_PLAYS_PER_TEAM]
+        by_team[abbr] = _top(rows)
 
     if unmapped:
         names = ", ".join(f"{name!r} ({count})" for name, count in unmapped.most_common())
@@ -251,6 +251,26 @@ def parse(
         )
 
     return by_team, warnings
+
+
+def _top(rows: list[PlayRow]) -> list[PlayRow]:
+    """The best plays in order, at most `PROJECTIONS_MAX_PER_PLAYER` each.
+
+    One player's props all rest on the same projection -- his rushing yards,
+    attempts and fantasy points rise and fall together -- so uncapped, a single
+    back could fill a team's whole table with one opinion stated four ways.
+    """
+    taken: Counter[str] = Counter()
+    top: list[PlayRow] = []
+    for row in rows:
+        player = _key(row.player)
+        if taken[player] >= config.PROJECTIONS_MAX_PER_PLAYER:
+            continue
+        taken[player] += 1
+        top.append(row)
+        if len(top) == config.TOP_PLAYS_PER_TEAM:
+            break
+    return top
 
 
 def _get(url: str) -> str:

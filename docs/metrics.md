@@ -748,6 +748,9 @@ are recomputed by the pipeline rather than read from the sheet's Diff column.
 - **One row per player and prop.** When several Sites list it, the one with the
   best edge is kept, and the Site is shown.
 - **Four per team**, best edge first (`config.TOP_PLAYS_PER_TEAM`).
+- **At most two per player** (`config.PROJECTIONS_MAX_PER_PLAYER`). A player's
+  props share one projection, so uncapped a single back could fill his team's
+  table — Arizona's was Tyler Allgeier four times.
 - The sheet's Play The is shown as written, unless it disagrees with the
   projection — Over on a projection below the line. That row is skipped and
   named in a warning: it is almost certainly a sheet error, and because edge is

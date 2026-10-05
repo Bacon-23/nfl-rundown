@@ -159,6 +159,10 @@ DVP_RUSHING_ROWS: Final[int] = 4
 #: Plays per team in the Projections tab, best percentage edge first.
 TOP_PLAYS_PER_TEAM: Final[int] = 4
 
+#: Most plays any one player may take of those four. His props share one
+#: projection, so without a cap a single back filled Arizona's whole table.
+PROJECTIONS_MAX_PER_PLAYER: Final[int] = 2
+
 #: A line counts toward the Projections tab only when it is at least this share
 #: of the statistic's median Normal line across the sheet. Percentage edge
 #: explodes on tiny lines -- "Rec Yards Over 0.5" against a 7.7 projection is

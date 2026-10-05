@@ -119,6 +119,26 @@ def test_each_team_is_cut_to_four():
     assert [p.player for p in plays["SEA"]] == [f"Player {n}" for n in (5, 4, 3, 2)]
 
 
+def test_one_player_takes_at_most_two_of_the_four():
+    """His props share one projection; four of them is one opinion four ways."""
+    stats = ("Rushing Yards", "Rec", "Fantasy Points", "Rush Attempts")
+    allgeier = [
+        row(name="Tyler Allgeier", stat=stat, line="10", proj=str(20 - n))
+        for n, stat in enumerate(stats)
+    ]
+    plays, _ = parse(
+        sheet(
+            *allgeier,
+            row(name="Second", line="10", proj="11"),
+            row(name="Third", stat="Rec", line="10", proj="10.5"),
+        )
+    )
+
+    players = [p.player for p in plays["SEA"]]
+    assert players == ["Tyler Allgeier", "Tyler Allgeier", "Second", "Third"]
+    assert [p.statistic for p in plays["SEA"][:2]] == ["Rushing Yards", "Rec"]
+
+
 def test_teams_are_kept_apart_and_filtered_to_the_week():
     plays, _ = parse(
         sheet(row(team="SEA"), row(name="Drake Maye", team="NE"), row(team="LAR")),
