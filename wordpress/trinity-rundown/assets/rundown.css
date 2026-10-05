@@ -638,6 +638,7 @@
 .trun-table--rushing,
 .trun-table--fantasy,
 .trun-table--kicking,
+.trun-table--projections,
 .trun-table--dvp {
 	table-layout: fixed;
 }
@@ -648,6 +649,7 @@
 .trun-table--rushing td,
 .trun-table--fantasy td,
 .trun-table--kicking td,
+.trun-table--projections td,
 .trun-table--dvp td {
 	text-align: right;
 }
@@ -665,11 +667,17 @@
 	font-size: 0.8125rem;
 }
 
+/* The prop is words, not a number, and is half of what the row is about. */
+.trun-table--projections td:first-of-type {
+	text-align: left;
+}
+
 .trun-table--efficiency thead th,
 .trun-table--passing thead th,
 .trun-table--rushing thead th,
 .trun-table--fantasy thead th,
 .trun-table--kicking thead th,
+.trun-table--projections thead th,
 .trun-table--dvp thead th {
 	text-align: right;
 }
@@ -691,6 +699,8 @@
 .trun-table--fantasy thead th:first-child,
 .trun-table--fantasy thead th:nth-child(2),
 .trun-table--kicking thead th:first-child,
+.trun-table--projections thead th:first-child,
+.trun-table--projections thead th:nth-child(2),
 .trun-table--dvp thead th:first-child {
 	text-align: left;
 }
@@ -932,6 +942,7 @@
 	.trun-table--rushing thead,
 	.trun-table--fantasy thead,
 	.trun-table--kicking thead,
+	.trun-table--projections thead,
 	.trun-table--dvp thead {
 		display: none;
 	}
@@ -941,6 +952,7 @@
 	.trun-table--rushing tr,
 	.trun-table--fantasy tr,
 	.trun-table--kicking tr,
+	.trun-table--projections tr,
 	.trun-table--dvp tr {
 		display: block;
 		padding-block: 0.625rem;
@@ -952,6 +964,7 @@
 	.trun-table--rushing tbody th,
 	.trun-table--fantasy tbody th,
 	.trun-table--kicking tbody th,
+	.trun-table--projections tbody th,
 	.trun-table--dvp tbody th {
 		display: block;
 		padding: 0 0 0.25rem;
@@ -964,6 +977,7 @@
 	.trun-table--rushing td,
 	.trun-table--fantasy td,
 	.trun-table--kicking td,
+	.trun-table--projections td,
 	.trun-table--dvp td {
 		display: flex;
 		justify-content: space-between;
@@ -978,6 +992,7 @@
 	.trun-table--rushing td::before,
 	.trun-table--fantasy td::before,
 	.trun-table--kicking td::before,
+	.trun-table--projections td::before,
 	.trun-table--dvp td::before {
 		content: attr(data-label);
 		font-size: 0.6875rem;
@@ -1002,6 +1017,7 @@
 	.trun-table--rushing,
 	.trun-table--fantasy,
 	.trun-table--kicking,
+	.trun-table--projections,
 	.trun-table--dvp {
 		table-layout: auto;
 	}

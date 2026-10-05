@@ -156,6 +156,9 @@ KICKER_MIN_FG_ATT: Final[int] = 5
 DVP_RECEIVING_ROWS: Final[int] = 8
 DVP_RUSHING_ROWS: Final[int] = 4
 
+#: Plays per team in the Projections tab, best percentage edge first.
+TOP_PLAYS_PER_TEAM: Final[int] = 4
+
 #: Pace is measured in neutral game states only, because trailing teams hurry
 #: and leading teams stall -- which says more about the scoreboard than about
 #: the offense.
@@ -208,6 +211,16 @@ def odds_api_key() -> str:
             "--no-odds-api to build with the nflverse fallback lines."
         )
     return key
+
+
+def projections_csv_url() -> str | None:
+    """The published-CSV link to the projections sheet, or None when unset.
+
+    Unset is not an error, unlike the Odds API key: the Projections tab is an
+    addition to the page, and a local build without the secret should still
+    produce everything else.
+    """
+    return os.environ.get("PROJECTIONS_CSV_URL", "").strip() or None
 
 
 def wp_token() -> str:

@@ -39,6 +39,12 @@ _ALIASES: dict[str, str] = {
     "washington redskins": "WAS",
     "washington football team": "WAS",
     "washington commanders": "WAS",
+    # Abbreviations the pick'em sites, and so the projections sheet, use where
+    # nflverse spells them differently.
+    "lar": "LA",
+    "jac": "JAX",
+    "wsh": "WAS",
+    "lvr": "LV",
 }
 
 

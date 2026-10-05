@@ -114,6 +114,7 @@ jobs:
         if: steps.health.outputs.skip != 'true'
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          PROJECTIONS_CSV_URL: ${{ secrets.PROJECTIONS_CSV_URL }}
           TRINITY_RUNDOWN_TOKEN: ${{ secrets.TRINITY_RUNDOWN_TOKEN }}
           WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
           ODDS_BOOK: ${{ vars.ODDS_BOOK || 'draftkings' }}

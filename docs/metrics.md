@@ -711,6 +711,48 @@ is honoured, because that is the pipeline actively saying the list is empty.
 
 ---
 
+## Projections
+
+Trinity's own prop projections, from the team's Google Sheet, read as the
+published CSV of its projections tab (`PROJECTIONS_CSV_URL`). The team updates
+the sheet a few times a week, so every hourly build rereads it.
+
+### Edge
+
+    edge = |Proj − Line| / Line
+
+A **share of the line**, not a raw difference, because props live on different
+scales: two over a 4.5-reception line is a far bigger call than two over an
+82.5-yard one. Ranked by raw difference, every table would be passing yardage.
+The raw difference (projection minus line) is shown beside the edge, and both
+are recomputed by the pipeline rather than read from the sheet's Diff column.
+
+### What is listed
+
+- **Standard lines only.** Goblin and Demon lines are discounted or boosted
+  against Standard, so their edges are not comparable; the team chose to leave
+  them out. A blank Type counts as Standard, which is what a sportsbook Site
+  with no pick'em tier leaves in the column.
+- **One row per player and prop.** When several Sites list it, the one with the
+  best edge is kept, and the Site is shown.
+- **Four per team**, best edge first (`config.TOP_PLAYS_PER_TEAM`).
+- The sheet's Play The is shown as written, unless it disagrees with the
+  projection — Over on a projection below the line. That row is skipped and
+  named in a warning: it is almost certainly a sheet error, and because edge is
+  a distance it would otherwise rank as a strong play in the wrong direction.
+
+Rows with a missing or non-numeric Line or Proj, a Line of zero, an unmapped
+team, or an unrecognised Type are skipped and counted in a warning.
+
+### When the sheet cannot be read
+
+The same rule as injuries: the `projections` key is **omitted** and WordPress
+keeps the stored plays. A sheet that was read but has nothing for a game sends
+an empty module, which does clear that game's plays — that is the sheet saying
+so, not a failure.
+
+---
+
 ## Sample size and the early season
 
 Season-to-date stats do not exist in Week 1. Rather than publish a three-game
