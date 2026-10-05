@@ -114,3 +114,44 @@ def test_replay_is_still_selectable_by_hand(workflow: dict):
 def test_cron_enabled_remains_the_master_switch(raw: str):
     """Two knobs, one job each: CRON_ENABLED stops everything, the variable steers."""
     assert "vars.CRON_ENABLED == 'true'" in raw
+
+
+# --------------------------------------------------------------------------
+# A rate-limited probe skips the hour on a schedule, and only on a schedule
+# --------------------------------------------------------------------------
+#
+# WordPress.com 429s the site under load, sometimes for longer than the probe's
+# retries last. Three scheduled builds failed that way in a week, each followed
+# by a green one an hour later. The cron is its own retry, so a scheduled run
+# that is still rate-limited ends with a warning instead of a red X. A manual
+# dispatch has someone watching it, and that person needs to know nothing was
+# pushed, so it still fails.
+
+
+def test_the_probe_maps_its_rate_limit_code_to_a_skip(workflow: dict):
+    from pipeline import push
+
+    probe = _build_step(workflow, "Confirm the target is reachable")
+    script = probe["run"]
+
+    assert probe.get("id") == "health"
+    assert f"-eq {push.EXIT_RATE_LIMITED}" in script
+    assert "skip=true" in script and "$GITHUB_OUTPUT" in script
+    assert "::warning" in script
+
+
+def test_only_a_scheduled_run_may_skip(workflow: dict):
+    script = _build_step(workflow, "Confirm the target is reachable")["run"]
+
+    assert '"$EVENT" = "schedule"' in script
+    assert _build_step(workflow, "Confirm the target is reachable")["env"]["EVENT"] == (
+        "${{ github.event_name }}"
+    )
+
+
+def test_a_skipped_probe_stops_the_build(workflow: dict):
+    """Building after a skip would spend Odds API credits on a push that the
+    rate limit is about to refuse."""
+    build = _build_step(workflow, "Build and push")
+
+    assert build.get("if") == "steps.health.outputs.skip != 'true'"

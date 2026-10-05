@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import sys
 import time
+from typing import Final
 
 import httpx
 
@@ -37,6 +38,21 @@ class TransientPushError(PushError):
         self.rate_limited = rate_limited
         #: Seconds the site asked us to wait (Retry-After), already capped.
         self.wait = wait
+
+
+class RateLimitedError(PushError):
+    """Every attempt ended in a 429: WordPress.com is still rate-limiting the site.
+
+    Distinct from PushError so `--health` can exit with EXIT_RATE_LIMITED, which
+    the scheduled workflow treats as a skipped hour rather than a failed build.
+    The 22:14 UTC build on 2026-10-04 saw 429 on all three attempts; the site
+    answered normally half an hour later.
+    """
+
+
+#: `--health` exit code for a rate limit that outlasted the retries. 75 is
+#: EX_TEMPFAIL from sysexits.h: "try again later", which is what the cron does.
+EXIT_RATE_LIMITED: Final[int] = 75
 
 
 def _raise_if_transient(response: httpx.Response) -> None:
@@ -133,7 +149,10 @@ def _with_retries(what: str, attempt_once):
             )
             time.sleep(delay)
 
-    raise PushError(f"{what} failed after {config.HTTP_RETRIES} attempts: {last_error}")
+    message = f"{what} failed after {config.HTTP_RETRIES} attempts: {last_error}"
+    if isinstance(last_error, TransientPushError) and last_error.rate_limited:
+        raise RateLimitedError(message)
+    raise PushError(message)
 
 
 def health() -> dict:
@@ -231,6 +250,14 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         result = health()
+    except RateLimitedError as exc:
+        print(f"RATE LIMITED: {exc}", file=sys.stderr)
+        print(
+            "\nWordPress.com is throttling the site. Nothing is wrong with the "
+            "token or the plugin; try again later.",
+            file=sys.stderr,
+        )
+        return EXIT_RATE_LIMITED
     except PushError as exc:
         print(f"UNREACHABLE: {exc}", file=sys.stderr)
         print(

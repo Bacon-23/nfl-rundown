@@ -112,6 +112,67 @@ def test_a_429_honours_retry_after_up_to_the_cap(monkeypatch):
 
 
 @respx.mock
+def test_a_429_that_outlasts_the_retries_is_its_own_error():
+    """The 22:14 UTC build on 2026-10-04 saw 429 on all three attempts and failed
+    the run, with the site answering normally half an hour later. A rate limit
+    that will not clear is a skipped hour, not a broken build, so the caller has
+    to be able to tell it apart from a 403 or a site that is down."""
+    respx.get(HEALTH).mock(return_value=httpx.Response(429, text="slow down"))
+
+    with pytest.raises(push.RateLimitedError):
+        push.health()
+
+
+@respx.mock
+def test_a_5xx_that_outlasts_the_retries_is_not_a_rate_limit():
+    respx.get(HEALTH).mock(return_value=httpx.Response(502, text="down"))
+
+    with pytest.raises(push.PushError) as caught:
+        push.health()
+
+    assert not isinstance(caught.value, push.RateLimitedError)
+
+
+@respx.mock
+def test_a_429_followed_by_a_dropped_connection_is_not_a_rate_limit():
+    """Only the last failure counts: a connection that never completes is the
+    'site may not answer anonymous requests' case, which must stay loud."""
+    respx.get(HEALTH).mock(
+        side_effect=[
+            httpx.Response(429, text="slow down"),
+            httpx.Response(429, text="slow down"),
+            httpx.ConnectError("connection reset"),
+        ]
+    )
+
+    with pytest.raises(push.PushError) as caught:
+        push.health()
+
+    assert not isinstance(caught.value, push.RateLimitedError)
+
+
+@respx.mock
+def test_the_health_command_exits_with_its_own_code_when_rate_limited(capsys):
+    """The workflow keys off this code to skip the hour instead of failing it."""
+    respx.get(HEALTH).mock(return_value=httpx.Response(429, text="slow down"))
+
+    assert push.main(["--health"]) == push.EXIT_RATE_LIMITED
+    assert "RATE LIMITED" in capsys.readouterr().err
+
+
+@respx.mock
+def test_the_health_command_still_exits_1_when_the_site_is_down():
+    respx.get(HEALTH).mock(return_value=httpx.Response(502, text="down"))
+
+    assert push.main(["--health"]) == 1
+
+
+def test_the_rate_limited_code_is_not_one_python_uses_itself():
+    """1 is a failure and 2 is an argparse usage error; neither may mean 'skip'."""
+    assert push.EXIT_RATE_LIMITED not in (0, 1, 2)
+
+
+@respx.mock
 def test_health_gives_up_after_the_configured_attempts():
     route = respx.get(HEALTH).mock(return_value=httpx.Response(502, text="down"))
 
