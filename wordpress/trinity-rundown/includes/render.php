@@ -275,34 +275,38 @@ function trun_render_cells( array $cells, string $modifier = '' ): string {
  */
 function trun_game_tabs( array $game ): array {
 	$tabs = [
-		'preview'   => [
+		'preview'     => [
 			'label' => __( 'Rundown', 'trinity-rundown' ),
 			'html'  => trun_render_notes( $game ) . trun_render_injuries( $game ),
 		],
-		'team'      => [
+		'projections' => [
+			'label' => __( 'Projections', 'trinity-rundown' ),
+			'html'  => trun_render_projections( $game ),
+		],
+		'team'        => [
 			'label' => __( 'Team', 'trinity-rundown' ),
 			'html'  => trun_render_efficiency( $game ),
 		],
 		// The slugs follow the labels; the payload keys do not. Receivers have
 		// always travelled as `passing`, and stored payloads still say so.
 		// Each of the three opens with its defense-vs-position section.
-		'passing'   => [
+		'passing'     => [
 			'label' => __( 'Passing', 'trinity-rundown' ),
 			'html'  => trun_render_dvp_section( $game, 'passing' ) . trun_render_quarterbacks( $game ),
 		],
-		'receiving' => [
+		'receiving'   => [
 			'label' => __( 'Receiving', 'trinity-rundown' ),
 			'html'  => trun_render_dvp_section( $game, 'receiving' ) . trun_render_passing( $game ),
 		],
-		'rushing'   => [
+		'rushing'     => [
 			'label' => __( 'Rushing', 'trinity-rundown' ),
 			'html'  => trun_render_dvp_section( $game, 'rushing' ) . trun_render_rushing( $game ),
 		],
-		'fantasy'   => [
+		'fantasy'     => [
 			'label' => __( 'Fantasy', 'trinity-rundown' ),
 			'html'  => trun_render_fantasy( $game ),
 		],
-		'kicking'   => [
+		'kicking'     => [
 			'label' => __( 'Kicking', 'trinity-rundown' ),
 			'html'  => trun_render_kicking( $game ),
 		],
@@ -1034,7 +1038,7 @@ function trun_render_dvp_side( array $game, string $side, array $data, array $se
 	/* translators: 1: offense team name, 2: defense team name. */
 	$matchup = sprintf( __( '%1$s offense against %2$s defense', 'trinity-rundown' ), $offense, $defense );
 
-	$html = '<div class="trun-dvp__side"><p class="trun-dvp__matchup">' . esc_html( $matchup ) . '</p>';
+	$html  = '<div class="trun-dvp__side"><p class="trun-dvp__matchup">' . esc_html( $matchup ) . '</p>';
 
 	if ( $allows ) {
 		/* translators: %s: defense team name. */
@@ -1261,6 +1265,94 @@ function trun_render_fantasy( array $game ): string {
 	</section>
 	<?php
 	return (string) ob_get_clean();
+}
+
+/**
+ * Trinity's best plays for each side, from the team's projections sheet.
+ *
+ * Ranked by edge as a share of the line, not by raw difference: the props are
+ * on different scales, and a raw ranking would be all passing yardage. The
+ * raw difference rides along as the edge's aside, because "+1.5" is what a
+ * reader compares against their own number.
+ *
+ * Normal lines only -- Goblin, Demon, Multiplier and sportsbook lines are left
+ * out in the pipeline, by the team's choice.
+ */
+function trun_render_projections( array $game ): string {
+	$sides = trun_module_sides( $game, 'projections' );
+
+	if ( ! $sides ) {
+		return '';
+	}
+
+	$columns = [
+		[
+			'label' => __( 'Player', 'trinity-rundown' ),
+			'width' => '28%',
+			'cell'  => static fn( $row ) => [
+				'text'  => (string) ( $row['player'] ?? '' ),
+				'aside' => (string) ( $row['position'] ?? '' ),
+			],
+		],
+		[
+			'label' => __( 'Prop', 'trinity-rundown' ),
+			'width' => '22%',
+			'cell'  => static fn( $row ) => (string) ( $row['statistic'] ?? '' ),
+		],
+		[
+			'label' => __( 'Play', 'trinity-rundown' ),
+			'width' => '15%',
+			'cell'  => static fn( $row ) => trun_play_text( $row ),
+		],
+		[
+			'label' => __( 'Proj', 'trinity-rundown' ),
+			'width' => '10%',
+			'tip'   => __( 'Trinity\'s projection for the stat.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => trun_decimal( $row['projection'] ?? null, 1 ),
+		],
+		[
+			'label' => __( 'Edge', 'trinity-rundown' ),
+			'width' => '13%',
+			'tip'   => __( 'How far the projection sits from the line, as a share of the line. The figure beside it is the raw difference, projection minus line.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => [
+				'text'  => trun_percent( $row['edge'] ?? null, 0 ),
+				'aside' => trun_signed( $row['diff'] ?? null, 1 ),
+			],
+		],
+		[
+			'label' => __( 'Site', 'trinity-rundown' ),
+			'width' => '12%',
+			'tip'   => __( 'Where the line is posted. When several sites list the same prop, the one with the best edge is shown.', 'trinity-rundown' ),
+			'cell'  => static fn( $row ) => (string) ( $row['site'] ?? '--' ),
+		],
+	];
+
+	ob_start();
+	?>
+	<section class="trun-module trun-module--projections">
+		<h3 class="trun-module__heading"><?php esc_html_e( 'Projections', 'trinity-rundown' ); ?></h3>
+		<?php foreach ( $sides as $side ) : ?>
+			<?php echo trun_render_stat_table( $columns, $side['rows'], 'trun-table--projections', $side['label'], $side['side'] ); ?>
+		<?php endforeach; ?>
+	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+
+/** "Over 82.5", or a dash when the row has no usable line. */
+function trun_play_text( array $row ): string {
+	$line = $row['line'] ?? null;
+
+	if ( ! is_numeric( $line ) ) {
+		return '--';
+	}
+
+	$play = 'under' === ( $row['play'] ?? '' )
+		? __( 'Under', 'trinity-rundown' )
+		: __( 'Over', 'trinity-rundown' );
+
+	// A line keeps the precision it was posted at: 82.5 stays 82.5, 6 stays 6.
+	return $play . ' ' . rtrim( rtrim( number_format( (float) $line, 2, '.', '' ), '0' ), '.' );
 }
 
 /**

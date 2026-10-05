@@ -12,7 +12,7 @@ Full design: [`docs/plan.md`](docs/plan.md). Metric definitions:
 ```
 GitHub Actions (hourly, Tue-Sun)
         |
-        |  build_week.py  — nflverse + Odds API + ESPN + Open-Meteo
+        |  build_week.py  — nflverse + Odds API + ESPN + Open-Meteo + projections sheet
         v
   week payload (JSON)
         |
@@ -69,6 +69,7 @@ to next week while it is still being played.
 | `WP_SITE_URL` | `--push` | e.g. `https://example.com`. **Must start with `https://`**, no trailing slash — the push refuses anything else rather than put the token on the wire in cleartext. |
 | `TRINITY_RUNDOWN_TOKEN` | `--push` | Must match the constant in that site's `wp-config.php`. |
 | `ODDS_BOOK` | optional | Defaults to `draftkings`. |
+| `PROJECTIONS_CSV_URL` | Projections tab | The projections sheet's published-CSV link. Unset, the tab is simply left off; a failed read keeps the stored plays and warns. |
 
 ## Two environments
 
@@ -114,7 +115,17 @@ four.
 
 `WP_SITE_URL` and `TRINITY_RUNDOWN_TOKEN` live in **GitHub Environments**, not
 repo-level secrets, so a job only ever holds the credential for the site it
-declares. `ODDS_API_KEY` is repo-level, since one subscription serves both.
+declares. `ODDS_API_KEY` is repo-level, since one subscription serves both,
+and so is `PROJECTIONS_CSV_URL`, since both sites show the same sheet.
+
+**The projections link.** In the sheet, File → Share → Publish to web, pick the
+projections tab (not "Entire document") and **Comma-separated values (.csv)**,
+and copy the link. It ends `output=csv` and carries a `gid=` naming the tab.
+The tab is already published for the site's existing projections table, so
+this only produces the link; nothing new becomes public. A `pubhtml?gid=...`
+link converts by hand: change `pubhtml` to `pub` and append `&output=csv`. Any
+other format, or the whole document, fails the parse with a warning and the
+stored plays stay.
 
 Each environment **must** carry a **deployment branch policy limiting it to
 `main`**. Without one, any workflow run naming the environment can read its

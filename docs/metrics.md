@@ -711,6 +711,63 @@ is honoured, because that is the pipeline actively saying the list is empty.
 
 ---
 
+## Projections
+
+Trinity's own prop projections, from the team's Google Sheet, read as the
+published CSV of its projections tab (`PROJECTIONS_CSV_URL`). The team updates
+the sheet a few times a week, so every hourly build rereads it.
+
+### Edge
+
+    edge = |Proj − Line| / Line
+
+A **share of the line**, not a raw difference, because props live on different
+scales: two over a 4.5-reception line is a far bigger call than two over an
+82.5-yard one. Ranked by raw difference, every table would be passing yardage.
+The raw difference (projection minus line) is shown beside the edge, and both
+are recomputed by the pipeline rather than read from the sheet's Diff column.
+
+### What is listed
+
+- **Normal lines only** — the pick'em sites' standard lines, which the sheet's
+  Type column calls Normal. The team chose to leave the rest out: Goblin and
+  Demon lines are discounted or boosted against Normal, Multiplier is
+  Underdog's version of the same, and the Sportsbooks rows (DraftKings,
+  FanDuel) are priced lines that only ever say Over. Any other Type, blank
+  included, is skipped with a warning until someone decides about it.
+- **No tiny lines.** Percentage edge explodes on them — "Rec Yards Over 0.5"
+  against a 7.7 projection is 1,440% — so a line counts only when it is at
+  least half that statistic's median Normal line across the whole sheet
+  (`config.PROJECTIONS_LINE_FLOOR`). That keeps the ranking and drops the
+  fringe players it rewarded.
+- **No TD props.** The projection is an expected count against a 0.5 or 1.5
+  line, so 0.7 TDs against Over 0.5 reads as +40% while being roughly a coin
+  flip to score. A linear edge says nothing true about them.
+- **No projection of zero.** That is the sheet saying the player is not
+  expected to play, and a pick'em site voids the play rather than paying it.
+- **One row per player and prop.** When several Sites list it, the one with the
+  best edge is kept, and the Site is shown.
+- **Four per team**, best edge first (`config.TOP_PLAYS_PER_TEAM`).
+- **At most two per player** (`config.PROJECTIONS_MAX_PER_PLAYER`). A player's
+  props share one projection, so uncapped a single back could fill his team's
+  table — Arizona's was Tyler Allgeier four times.
+- The sheet's Play The is shown as written, unless it disagrees with the
+  projection — Over on a projection below the line. That row is skipped and
+  named in a warning: it is almost certainly a sheet error, and because edge is
+  a distance it would otherwise rank as a strong play in the wrong direction.
+
+Rows with a missing or non-numeric Line or Proj, a Line of zero, an unmapped
+team, or an unrecognised Type are skipped and counted in a warning.
+
+### When the sheet cannot be read
+
+The same rule as injuries: the `projections` key is **omitted** and WordPress
+keeps the stored plays. A sheet that was read but has nothing for a game sends
+an empty module, which does clear that game's plays — that is the sheet saying
+so, not a failure.
+
+---
+
 ## Sample size and the early season
 
 Season-to-date stats do not exist in Week 1. Rather than publish a three-game

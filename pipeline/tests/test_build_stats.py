@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from pipeline.build_week import (
+    _attach_projections,
     _dvp_sides,
     _games_sampled,
     _missing_team_warnings,
@@ -25,12 +26,14 @@ from pipeline.schema import (
     Game,
     Kickoff,
     Odds,
+    PlayRow,
     QbDefenseRow,
     QbRow,
     ReceiverRow,
     Team,
     TeamEfficiency,
 )
+from pipeline.sources import projections as projections_source
 
 
 def game(away="NE", home="SEA"):
@@ -161,3 +164,57 @@ class TestRecentWeeks:
 
         assert _recent_weeks(Weeks(), "SEA") == [1, 2]
         assert _recent_weeks(Weeks(), "NE") == [1]
+
+
+def play(name="A Player"):
+    return PlayRow(
+        player=name,
+        statistic="Receptions",
+        play="over",
+        line=4.5,
+        projection=5.5,
+        diff=1.0,
+        edge=0.22,
+    )
+
+
+class TestAttachProjections:
+    def test_no_url_attaches_nothing_and_says_nothing(self):
+        """The secret is unset on a local build; that is not a fault."""
+        built = [game()]
+
+        assert _attach_projections(built, None) == []
+        assert built[0].projections is None
+
+    def test_a_failed_read_leaves_the_stored_plays_alone(self, monkeypatch):
+        def boom(url, teams):
+            raise projections_source.ProjectionsUnavailable("down")
+
+        monkeypatch.setattr(projections_source, "fetch", boom)
+        built = [game()]
+
+        warnings = _attach_projections(built, "https://sheet")
+
+        assert built[0].projections is None
+        assert len(warnings) == 1
+        assert "keeping the stored plays" in warnings[0]
+
+    def test_a_good_read_gives_every_game_a_module_even_an_empty_one(self, monkeypatch):
+        """An empty module is what clears last week's plays off the page."""
+        seen = {}
+
+        def fetch(url, teams):
+            seen["teams"] = teams
+            return {"SEA": [play("Walker")]}, ["a sheet warning"]
+
+        monkeypatch.setattr(projections_source, "fetch", fetch)
+        built = [game("NE", "SEA"), game("DAL", "NYG")]
+
+        warnings = _attach_projections(built, "https://sheet")
+
+        assert seen["teams"] == {"NE", "SEA", "DAL", "NYG"}
+        assert warnings == ["a sheet warning"]
+        assert [p.player for p in built[0].projections.home] == ["Walker"]
+        assert built[0].projections.away == []
+        assert built[1].projections.away == built[1].projections.home == []
+        assert "projections" in built[1].model_dump(exclude_none=True)

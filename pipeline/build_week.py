@@ -4,7 +4,7 @@
     python -m pipeline.build_week --season 2026 --week 1 --push
 
 `_attach_modules` hangs everything that is not the header off each game --
-weather, season records, the stat tables, and injuries. Every module fails on
+weather, season records, the stat tables, projections, and injuries. Every module fails on
 its own: a dead feed costs one section, never the page.
 """
 
@@ -36,6 +36,7 @@ from pipeline.schema import (
     KickingModule,
     Kickoff,
     PassingModule,
+    ProjectionsModule,
     QbSide,
     QuarterbackModule,
     RushingModule,
@@ -45,6 +46,7 @@ from pipeline.schema import (
 from pipeline.sources import injuries as injuries_source
 from pipeline.sources import odds as odds_source
 from pipeline.sources import pbp as pbp_source
+from pipeline.sources import projections as projections_source
 from pipeline.sources import schedule as schedule_source
 from pipeline.sources import weather as weather_source
 from pipeline.sources.odds_tape import StaleFixtureError
@@ -153,6 +155,9 @@ def _attach_modules(
     # files whichever matchup is being assembled.
     warnings.extend(_attach_stats(built, season, week))
 
+    # --- Projections, from Trinity's own sheet ------------------------------
+    warnings.extend(_attach_projections(built, config.projections_csv_url()))
+
     # --- Injuries ----------------------------------------------------------
     teams = {g.away for g in scheduled} | {g.home for g in scheduled}
 
@@ -172,6 +177,32 @@ def _attach_modules(
     for game in scheduled:
         by_id[game.game_id].injuries = (
             rows_by_team.get(game.away, []) + rows_by_team.get(game.home, [])
+        )
+
+    return warnings
+
+
+def _attach_projections(built: list[Game], url: str | None) -> list[str]:
+    """Hang each game's top plays off it, returning any warnings.
+
+    No URL means the secret is not set, which is a local build rather than a
+    fault, so it passes without a word. A failed read leaves `projections` as
+    None and WordPress keeps the stored plays. A good read gives every game a
+    module, empty or not, so a cleared sheet clears the page too.
+    """
+    if not url:
+        return []
+
+    teams = {g.away.abbr for g in built} | {g.home.abbr for g in built}
+    try:
+        plays, warnings = projections_source.fetch(url, teams)
+    except projections_source.ProjectionsUnavailable as exc:
+        return [f"Projections unavailable, keeping the stored plays: {exc}"]
+
+    for game in built:
+        game.projections = ProjectionsModule(
+            away=plays.get(game.away.abbr, []),
+            home=plays.get(game.home.abbr, []),
         )
 
     return warnings

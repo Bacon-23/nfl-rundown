@@ -318,6 +318,31 @@ class QbSide(Base):
     splits: list[QbSplitRow] = Field(default_factory=list)
 
 
+class PlayRow(Base):
+    """One prop line against Trinity's projection, from the projections sheet."""
+
+    player: str
+    position: str | None = None
+    #: As the sheet words it, e.g. "Receiving Yards".
+    statistic: str
+    play: Literal["over", "under"]
+    line: float
+    projection: float
+    #: Projection minus line, recomputed here rather than read from the sheet.
+    diff: float
+    #: |projection - line| / line, as a fraction. What the table is ranked by.
+    edge: float
+    site: str | None = None
+
+
+class ProjectionsModule(Base):
+    """Not a `Module`: the projections are Trinity's, not a sample of games,
+    so there is no basis or badge to report."""
+
+    away: list[PlayRow] = Field(default_factory=list)
+    home: list[PlayRow] = Field(default_factory=list)
+
+
 class Module(Base):
     """A stat table plus the provenance a reader needs to weigh it."""
 
@@ -403,6 +428,11 @@ class Game(Base):
     kicking: KickingModule | None = None
 
     dvp: DvpModule | None = None
+
+    #: None when the sheet could not be read, so WordPress keeps the stored
+    #: plays. An empty module is different: the sheet was read and had nothing
+    #: for this game, which clears last week's plays off the page.
+    projections: ProjectionsModule | None = None
 
 
 class WeekPayload(Base):
