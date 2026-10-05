@@ -4,8 +4,9 @@ What has to hold:
 
 1. Ranking is by percentage edge, not raw difference. Stats live on different
    scales, and a raw ranking would fill every table with passing yardage.
-2. Only Standard lines count. Goblin and Demon lines are left out by the
-   team's decision, so dropping them is not worth a warning.
+2. Only Normal lines count. Goblin, Demon, Multiplier and Sportsbooks lines
+   are left out by the team's decision, so dropping them is not worth a
+   warning; a tier nobody has decided about is.
 3. A hand-kept sheet goes wrong a row at a time. A bad row costs that row and
    a warning; only a sheet that cannot be read at all raises, because "could
    not read it" must never be published as "no plays this week".
@@ -23,7 +24,7 @@ from pipeline.sources.team_map import UnmappedTeamError
 
 URL = "https://docs.google.com/spreadsheets/d/e/sheet/pub?gid=1&single=true&output=csv"
 
-HEADER = "Site,Name,Position,Team,Statistic,Line,Proj,Type,Play The,Diff"
+HEADER = "Site,Name,Position,Team,Statistic,Line,Proj,Type,Play The,Diff,LastUpdated"
 
 _TEAMS = {"SEA": "SEA", "NE": "NE", "LAR": "LA", "LA": "LA"}
 
@@ -47,12 +48,12 @@ def row(
     stat="Receiving Yards",
     line="70.5",
     proj="80.5",
-    tier="Standard",
+    tier="Normal",
     play="Over",
     site="PrizePicks",
     position="WR",
 ):
-    return f"{site},{name},{position},{team},{stat},{line},{proj},{tier},{play},0"
+    return f"{site},{name},{position},{team},{stat},{line},{proj},{tier},{play},0,"
 
 
 def sheet(*rows, header=HEADER):
@@ -89,7 +90,7 @@ def test_diff_and_edge_are_computed_not_read_from_the_sheet():
 
 def test_headers_match_in_any_order_and_any_case():
     header = "play the,TEAM,proj,Line,statistic,Name,type"
-    body = "Over,SEA,80.5,70.5,Receiving Yards,Jaxon Smith-Njigba,standard"
+    body = "Over,SEA,80.5,70.5,Receiving Yards,Jaxon Smith-Njigba,normal"
 
     plays, _ = parse(sheet(body, header=header))
 
@@ -134,36 +135,97 @@ def test_sheet_abbreviations_map_onto_nflverse():
 
 
 # ---------------------------------------------------------------------------
+# The line floor and TD props
+# ---------------------------------------------------------------------------
+
+
+def test_a_line_far_below_the_stats_typical_line_does_not_count():
+    """Percentage edge explodes on tiny lines: this one is 1,440%."""
+    plays, warnings = parse(
+        sheet(
+            row(name="Starter", line="62.5", proj="81.9"),
+            row(name="Third Tight End", line="0.5", proj="7.7"),
+            row(name="Slot", line="40.5", proj="44.5"),
+        )
+    )
+
+    assert [p.player for p in plays["SEA"]] == ["Starter", "Slot"]
+    assert warnings == []
+
+
+def test_the_floor_reads_the_whole_sheet_not_just_the_weeks_teams():
+    """Otherwise the same line would pass one week and fail the next."""
+    rows = [row(name=f"NE {n}", team="NE", line="60.5", proj="61") for n in range(3)]
+    plays, _ = parse(sheet(row(line="20.5", proj="40"), *rows), teams={"SEA"})
+
+    # Median Rec Yards line is 60.5, so the floor is ~30 and 20.5 misses it.
+    assert "SEA" not in plays
+
+
+def test_the_floor_is_per_statistic():
+    plays, _ = parse(
+        sheet(
+            row(name="Yards", stat="Rec Yards", line="60.5", proj="70"),
+            row(name="Catches", stat="Rec", line="3.5", proj="5"),
+        )
+    )
+
+    assert {p.player for p in plays["SEA"]} == {"Yards", "Catches"}
+
+
+def test_a_projection_of_zero_is_a_player_ruled_out_not_a_play():
+    plays, warnings = parse(
+        sheet(row(name="Kept"), row(name="Inactive", line="13.5", proj="0", play="Under"))
+    )
+
+    assert [p.player for p in plays["SEA"]] == ["Kept"]
+    assert warnings == []
+
+
+@pytest.mark.parametrize("stat", ["Pass TDs", "Rush/Rec TDs", "PRR TDs", "Anytime TD"])
+def test_td_props_are_left_out_quietly(stat):
+    plays, warnings = parse(
+        sheet(row(name="Kept"), row(name="Scorer", stat=stat, line="0.5", proj="0.7"))
+    )
+
+    assert [p.player for p in plays["SEA"]] == ["Kept"]
+    assert warnings == []
+
+
+# ---------------------------------------------------------------------------
 # Tiers
 # ---------------------------------------------------------------------------
 
 
-def test_goblin_and_demon_lines_are_left_out_quietly():
+def test_only_normal_lines_are_kept_and_the_rest_leave_quietly():
     plays, warnings = parse(
         sheet(
-            row(name="Standard Guy"),
+            row(name="Normal Guy"),
             row(name="Goblin Guy", tier="Goblin", proj="200"),
             row(name="Demon Guy", tier="DEMON", proj="200"),
+            row(name="Multiplier Guy", tier="Multiplier", site="Underdog", proj="200"),
+            # As the sheet writes a sportsbook line: the price rides in the cell.
+            row(name="Book Guy", tier="Sportsbooks", site="DraftKings", line="29.5 (-104)"),
         )
     )
 
-    assert [p.player for p in plays["SEA"]] == ["Standard Guy"]
+    assert [p.player for p in plays["SEA"]] == ["Normal Guy"]
     assert warnings == []
 
 
-def test_a_blank_type_counts_as_standard():
-    """What a sportsbook Site with no pick'em tier leaves in the column."""
-    plays, _ = parse(sheet(row(tier="", site="DraftKings")))
+def test_standard_is_accepted_as_a_synonym():
+    plays, _ = parse(sheet(row(tier="Standard")))
 
     assert len(plays["SEA"]) == 1
 
 
-def test_an_unknown_type_is_skipped_with_a_warning():
-    plays, warnings = parse(sheet(row(name="Kept"), row(name="Odd", tier="Flex")))
+@pytest.mark.parametrize("tier", ["Flex", ""])
+def test_an_undecided_type_is_skipped_with_a_warning(tier):
+    plays, warnings = parse(sheet(row(name="Kept"), row(name="Odd", tier=tier)))
 
     assert [p.player for p in plays["SEA"]] == ["Kept"]
     assert len(warnings) == 1
-    assert "'Flex'" in warnings[0]
+    assert f"'{tier}'" in warnings[0]
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +238,7 @@ def test_a_play_listed_on_several_sites_keeps_the_best_edge():
         sheet(
             row(site="PrizePicks", line="74.5"),
             row(site="Underdog", line="69.5"),
-            row(site="DraftKings", line="72.5", tier=""),
+            row(site="PrizePicks", line="72.5"),
         )
     )
 
@@ -229,7 +291,7 @@ def test_a_row_that_cannot_be_ranked_is_skipped_and_counted(bad):
 
 
 def test_blank_spacer_rows_are_ignored_without_a_warning():
-    plays, warnings = parse(sheet(row(), ",,,,,,,,,", ""))
+    plays, warnings = parse(sheet(row(), ",,,,,,,,,,", ""))
 
     assert len(plays["SEA"]) == 1
     assert warnings == []

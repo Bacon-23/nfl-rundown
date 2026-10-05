@@ -729,10 +729,22 @@ are recomputed by the pipeline rather than read from the sheet's Diff column.
 
 ### What is listed
 
-- **Standard lines only.** Goblin and Demon lines are discounted or boosted
-  against Standard, so their edges are not comparable; the team chose to leave
-  them out. A blank Type counts as Standard, which is what a sportsbook Site
-  with no pick'em tier leaves in the column.
+- **Normal lines only** — the pick'em sites' standard lines, which the sheet's
+  Type column calls Normal. The team chose to leave the rest out: Goblin and
+  Demon lines are discounted or boosted against Normal, Multiplier is
+  Underdog's version of the same, and the Sportsbooks rows (DraftKings,
+  FanDuel) are priced lines that only ever say Over. Any other Type, blank
+  included, is skipped with a warning until someone decides about it.
+- **No tiny lines.** Percentage edge explodes on them — "Rec Yards Over 0.5"
+  against a 7.7 projection is 1,440% — so a line counts only when it is at
+  least half that statistic's median Normal line across the whole sheet
+  (`config.PROJECTIONS_LINE_FLOOR`). That keeps the ranking and drops the
+  fringe players it rewarded.
+- **No TD props.** The projection is an expected count against a 0.5 or 1.5
+  line, so 0.7 TDs against Over 0.5 reads as +40% while being roughly a coin
+  flip to score. A linear edge says nothing true about them.
+- **No projection of zero.** That is the sheet saying the player is not
+  expected to play, and a pick'em site voids the play rather than paying it.
 - **One row per player and prop.** When several Sites list it, the one with the
   best edge is kept, and the Site is shown.
 - **Four per team**, best edge first (`config.TOP_PLAYS_PER_TEAM`).

@@ -15,9 +15,24 @@ scales. Two yards over a 4.5-reception line is nothing like two yards over an
 82.5-yard one, and ranking by raw difference would fill every table with
 passing yardage.
 
-Only Standard lines are used. Goblin and Demon lines are discounted or boosted
-against Standard on the pick'em sites, so their edges are not comparable, and
-the team chose to leave them out rather than rank them alongside.
+A percentage has the opposite failure: it explodes on tiny lines. On the real
+sheet, a third tight end's "Rec Yards Over 0.5" against a 7.7 projection
+scored 1,440% and topped most games. So a line only counts once it is at least
+half that statistic's typical line -- the median Normal line for it across the
+whole sheet (`config.PROJECTIONS_LINE_FLOOR`). That keeps the agreed ranking
+and drops the fringe players it was rewarding.
+
+TD props are left out. Their lines sit at 0.5 or 1.5 and the projection is an
+expected count, so 0.7 TDs against Over 0.5 reads as a 40% edge while being
+roughly a coin flip to score at all. A linear edge says nothing true about
+them.
+
+Only Normal lines are used -- the pick'em sites' standard lines, which the
+sheet's Type column calls "Normal". The team chose to leave the rest out:
+Goblin and Demon lines are discounted or boosted against Normal, Underdog's
+Multiplier lines are its own version of the same thing, and the Sportsbooks
+rows (DraftKings, FanDuel) carry a price in the Line cell and only ever say
+Over.
 
 The sheet is maintained by hand, so everything here is defensive: headers are
 matched by name, a bad row costs that row and a warning, and only a feed that
@@ -29,8 +44,10 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
+import statistics
 import unicodedata
-from collections import Counter
+from collections import Counter, defaultdict
 
 import httpx
 
@@ -55,18 +72,23 @@ _HEADERS: dict[str, str] = {
 }
 
 #: Without these a row cannot be placed, ranked, or filtered. Type is required
-#: even though most rows say Standard: with the column gone, every Goblin and
-#: Demon line would pass as Standard and nobody would notice.
+#: because the filter is the point: with the column gone, every Goblin and
+#: Demon line would pass for a Normal one and nobody would notice.
 _REQUIRED = ("name", "team", "statistic", "line", "proj", "type", "play")
 
-#: Tiers that are kept. Blank counts as Standard, which is what a sportsbook
-#: Site with no pick'em tier leaves in the column.
-_STANDARD = {"", "standard"}
+#: Tiers that are kept. "Standard" is accepted as a synonym in case the sheet
+#: is ever relabelled.
+_STANDARD = {"normal", "standard"}
 
 #: Tiers that are dropped without comment -- the team's decision, not a fault.
-_EXCLUDED = {"goblin", "demon"}
+#: Anything else, blank included, is dropped with a warning, since a tier
+#: nobody has decided about should not reach the page by default.
+_EXCLUDED = {"goblin", "demon", "multiplier", "sportsbooks"}
 
 _PLAYS = {"over": "over", "o": "over", "under": "under", "u": "under"}
+
+#: "Pass TDs", "Rush/Rec TDs", "PRR TDs" -- any statistic counting touchdowns.
+_TD_PROP = re.compile(r"\btds?\b", re.IGNORECASE)
 
 
 class ProjectionsUnavailable(RuntimeError):
@@ -119,8 +141,8 @@ def parse(
     bad_rows = 0
     mismatches: list[str] = []
 
-    #: (team, player, statistic) -> the best Site's row for it.
-    best: dict[tuple[str, str, str], PlayRow] = {}
+    #: Every usable row on the sheet, all teams, as (team, statistic key, row).
+    usable: list[tuple[str, str, PlayRow]] = []
 
     for cells in reader:
         row = {field: _cell(cells, at) for field, at in index.items()}
@@ -141,14 +163,20 @@ def parse(
             unmapped[row["team"]] += 1
             continue
 
-        if teams is not None and abbr not in teams:
-            continue
+        if _TD_PROP.search(row["statistic"]):
+            continue  # see the module docstring
 
         line = _number(row["line"])
         projection = _number(row["proj"])
         play = _PLAYS.get(row["play"].casefold())
         if line is None or projection is None or line <= 0 or play is None or not row["statistic"]:
             bad_rows += 1
+            continue
+
+        if projection == 0:
+            # The sheet's way of saying the player is not expected to suit up.
+            # A pick'em site voids that play rather than paying the Under, and
+            # at 100% edge it would otherwise top the table.
             continue
 
         diff = projection - line
@@ -171,7 +199,26 @@ def parse(
             site=row.get("site") or None,
         )
 
-        key = (abbr, _key(row["name"]), _key(row["statistic"]))
+        usable.append((abbr, _key(row["statistic"]), candidate))
+
+    # The floor reads the whole sheet, not just this week's teams, so it is the
+    # same number whichever slate is being built.
+    lines_by_stat: defaultdict[str, list[float]] = defaultdict(list)
+    for _, stat, candidate in usable:
+        lines_by_stat[stat].append(candidate.line)
+    floors = {
+        stat: config.PROJECTIONS_LINE_FLOOR * statistics.median(lines)
+        for stat, lines in lines_by_stat.items()
+    }
+
+    #: (team, player, statistic) -> the best Site's row for it.
+    best: dict[tuple[str, str, str], PlayRow] = {}
+    for abbr, stat, candidate in usable:
+        if teams is not None and abbr not in teams:
+            continue
+        if candidate.line < floors[stat]:
+            continue
+        key = (abbr, _key(candidate.player), stat)
         current = best.get(key)
         if current is None or candidate.edge > current.edge:
             best[key] = candidate

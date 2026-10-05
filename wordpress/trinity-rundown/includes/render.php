@@ -1275,8 +1275,8 @@ function trun_render_fantasy( array $game ): string {
  * raw difference rides along as the edge's aside, because "+1.5" is what a
  * reader compares against their own number.
  *
- * Standard lines only -- Goblin and Demon lines are left out in the pipeline,
- * since their discounted and boosted lines do not compare with Standard ones.
+ * Normal lines only -- Goblin, Demon, Multiplier and sportsbook lines are left
+ * out in the pipeline, by the team's choice.
  */
 function trun_render_projections( array $game ): string {
 	$sides = trun_module_sides( $game, 'projections' );

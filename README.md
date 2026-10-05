@@ -122,8 +122,10 @@ and so is `PROJECTIONS_CSV_URL`, since both sites show the same sheet.
 projections tab (not "Entire document") and **Comma-separated values (.csv)**,
 and copy the link. It ends `output=csv` and carries a `gid=` naming the tab.
 The tab is already published for the site's existing projections table, so
-this only produces the link; nothing new becomes public. Any other format, or
-the whole document, fails the parse with a warning and the stored plays stay.
+this only produces the link; nothing new becomes public. A `pubhtml?gid=...`
+link converts by hand: change `pubhtml` to `pub` and append `&output=csv`. Any
+other format, or the whole document, fails the parse with a warning and the
+stored plays stay.
 
 Each environment **must** carry a **deployment branch policy limiting it to
 `main`**. Without one, any workflow run naming the environment can read its

@@ -159,6 +159,12 @@ DVP_RUSHING_ROWS: Final[int] = 4
 #: Plays per team in the Projections tab, best percentage edge first.
 TOP_PLAYS_PER_TEAM: Final[int] = 4
 
+#: A line counts toward the Projections tab only when it is at least this share
+#: of the statistic's median Normal line across the sheet. Percentage edge
+#: explodes on tiny lines -- "Rec Yards Over 0.5" against a 7.7 projection is
+#: 1,440% -- and without a floor every table filled with third tight ends.
+PROJECTIONS_LINE_FLOOR: Final[float] = 0.5
+
 #: Pace is measured in neutral game states only, because trailing teams hurry
 #: and leading teams stall -- which says more about the scoreboard than about
 #: the offense.
