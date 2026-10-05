@@ -965,14 +965,20 @@ function trun_render_dvp_side( array $game, string $side, array $data, array $se
 		$by_role[ (string) ( $row['role'] ?? '' ) ] = is_array( $row['stats'] ?? null ) ? $row['stats'] : [];
 	}
 
-	// Receiving carries a targets column, so its stats give up a little width
-	// to keep the name column from wrapping every row onto three lines.
+	// Receiving carries a targets column and Passing a seventh stat, so their
+	// stats and games column give up a little width to keep the name column
+	// from wrapping every row onto three lines. Whatever the stats leave goes
+	// to the Role column.
 	$with_targets  = isset( $section['stats']['rec'] );
-	$stat_width    = $with_targets ? '11%' : '12%';
+	$tight         = $with_targets || count( $section['stats'] ) > 6;
+	$stat_share    = $tight ? 11 : 12;
+	$stat_width    = $stat_share . '%';
+	$role_share    = 100 - $stat_share * count( $section['stats'] );
+	$games_share   = $tight ? 5 : 7;
 	$allow_columns = [
 		[
 			'label' => __( 'Role', 'trinity-rundown' ),
-			'width' => $with_targets ? '34%' : '28%',
+			'width' => $role_share . '%',
 			'cell'  => static fn( $row ) => trun_dvp_role_label( (string) ( $row['role'] ?? '' ) ),
 		],
 	];
@@ -980,7 +986,7 @@ function trun_render_dvp_side( array $game, string $side, array $data, array $se
 	$player_columns = [
 		[
 			'label' => __( 'Player', 'trinity-rundown' ),
-			'width' => $with_targets ? '23%' : '21%',
+			'width' => ( $role_share - $games_share - ( $with_targets ? 6 : 0 ) ) . '%',
 			'cell'  => static fn( $row ) => [
 				'text'  => (string) ( $row['player'] ?? '' ),
 				'aside' => (string) ( $row['position'] ?? '' ),
@@ -988,7 +994,7 @@ function trun_render_dvp_side( array $game, string $side, array $data, array $se
 		],
 		[
 			'label' => __( 'GP', 'trinity-rundown' ),
-			'width' => $with_targets ? '5%' : '7%',
+			'width' => $games_share . '%',
 			'tip'   => __( 'Games he recorded a stat in, over the window in the badge.', 'trinity-rundown' ),
 			'cell'  => static fn( $row ) => isset( $row['games'] ) ? (string) (int) $row['games'] : '--',
 		],
@@ -1058,29 +1064,33 @@ function trun_dvp_sections(): array {
 	return [
 		'passing'   => [
 			'label' => __( 'Passing', 'trinity-rundown' ),
-			'note'  => __( 'Interceptions are ranked the other way round, so 1 always favours the offense.', 'trinity-rundown' ),
+			'note'  => __( 'Interceptions are ranked the other way round, so 1 always favours the offense. Long is the longest completion in each game, averaged -- not the season\'s longest play.', 'trinity-rundown' ),
 			'stats' => [
-				'pass_yds' => [
+				'pass_yds'  => [
 					'label' => __( 'Pass yds', 'trinity-rundown' ),
 					'tip'   => __( 'Passing yards per game.', 'trinity-rundown' ),
 				],
-				'comp'     => [
+				'comp'      => [
 					'label' => __( 'Comp', 'trinity-rundown' ),
 					'tip'   => __( 'Completions per game.', 'trinity-rundown' ),
 				],
-				'att'      => [
+				'att'       => [
 					'label' => __( 'Att', 'trinity-rundown' ),
 					'tip'   => __( 'Pass attempts per game.', 'trinity-rundown' ),
 				],
-				'pass_td'  => [
+				'pass_td'   => [
 					'label' => __( 'Pass TD', 'trinity-rundown' ),
 					'tip'   => __( 'Passing touchdowns per game.', 'trinity-rundown' ),
 				],
-				'int'      => [
+				'int'       => [
 					'label' => __( 'INT', 'trinity-rundown' ),
 					'tip'   => __( 'Interceptions per game. Ranked the other way round: 1 is the defense that picks off the fewest, so 1 still favours the offense.', 'trinity-rundown' ),
 				],
-				'ppr'      => $ppr,
+				'long_pass' => [
+					'label' => __( 'Long', 'trinity-rundown' ),
+					'tip'   => __( 'The longest completion in each game, averaged over games -- the number a Longest Completion prop prices, not the season\'s longest play. Sacks and two-point tries are not counted.', 'trinity-rundown' ),
+				],
+				'ppr'       => $ppr,
 			],
 		],
 		'receiving' => [

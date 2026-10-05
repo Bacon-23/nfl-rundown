@@ -80,6 +80,7 @@ DVP_COLUMNS: Final[frozenset[str]] = frozenset(
         "yardline_100",
         "yards_gained",
         "complete_pass",
+        "passer_player_id",
         "receiver_player_id",
         "rusher_player_id",
         "sack",

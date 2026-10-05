@@ -441,7 +441,7 @@ is always printed beside the value, so the band never rests on colour alone.
 
 | Section | Roles | Columns |
 |---|---|---|
-| Passing | QB | pass yds, comp, att, pass TD, INT, PPR |
+| Passing | QB | pass yds, comp, att, pass TD, INT, long, PPR |
 | Receiving | WR, TE, RB | rec, rec yds, rec TD, RZ tgt, long, PPR |
 | Rushing | QB, RB | carries, rush yds, rush TD, RZ car, long, PPR |
 
@@ -453,13 +453,15 @@ Carries include scrambles, because that is how the box score counts them.
   receiver, no sack, no two-point try.
 - **RZ car** — designed runs from the opponent's 20 or closer. Scrambles and
   kneels are out and sneaks are in, the same rule as the Inside 5 column.
-- **Long** — the longest reception (or run) in each game, **averaged over
-  games**. It is what a Longest Reception prop prices. A season maximum
+- **Long** — the longest completion, reception or run in each game,
+  **averaged over games**. It is what a Longest Completion (or Reception)
+  prop prices. A season maximum
   describes one play, and other sites that publish one will show a much
   bigger number: against Jacksonville in 2025 our RB long rush is 14.9, while
   the season's longest was 38. The long rush counts scrambles, to agree with
-  the carries beside it. A game in which nobody at the role caught a pass
-  counts as zero.
+  the carries beside it. The long pass is the passer's longest completion:
+  incompletions, sacks and two-point tries are out. A game in which nobody at
+  the role completed or caught a pass counts as zero.
 - **PPR** — nflverse's `fantasy_points_ppr`, the scoring the Fantasy tab uses.
   It is the role's **whole** total, so a running back's catches and carries
   are both in it, and the same figure appears under Receiving and Rushing.
