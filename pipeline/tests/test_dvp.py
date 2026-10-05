@@ -54,6 +54,7 @@ PLAY_SCHEMA = {
     "yardline_100": pl.Float64,
     "yards_gained": pl.Float64,
     "complete_pass": pl.Int64,
+    "passer_player_id": pl.Utf8,
     "receiver_player_id": pl.Utf8,
     "rusher_player_id": pl.Utf8,
     "sack": pl.Int64,
@@ -89,7 +90,7 @@ def line(player_id, *, game="g1", team="SEA", opponent="NE", position="WR", **ov
     return row
 
 
-def catch(receiver, *, game="g1", gained=10, yardline=50, complete=1, **over):
+def catch(receiver, *, game="g1", gained=10, yardline=50, complete=1, passer=None, **over):
     row = {
         "season_type": "REG",
         "game_id": game,
@@ -98,6 +99,7 @@ def catch(receiver, *, game="g1", gained=10, yardline=50, complete=1, **over):
         "yardline_100": yardline,
         "yards_gained": gained,
         "complete_pass": complete,
+        "passer_player_id": passer,
         "receiver_player_id": receiver,
         "rusher_player_id": None,
         "sack": 0,
@@ -244,6 +246,39 @@ class TestAllowed:
 
         assert result["SEA"]["WR"]["long_rec"] == pytest.approx(30.0)
 
+    def test_long_pass_is_the_mean_of_each_games_longest_completion(self):
+        """Game 1's longest completion against SEA is 40, game 2's is 20: 30.
+        An incompletion and a sack are not completions, however long."""
+        result = allowed_of(
+            [
+                line("qb1", game="g1", team="NE", opponent="SEA", position="QB"),
+                line("qb2", game="g2", team="DAL", opponent="SEA", position="QB"),
+            ],
+            [
+                catch("wr1", game="g1", gained=40, passer="qb1"),
+                catch("wr1", game="g1", gained=15, passer="qb1"),
+                catch("wr2", game="g2", gained=20, passer="qb2"),
+                catch("wr2", game="g2", gained=70, complete=0, passer="qb2"),
+                catch(None, game="g2", gained=-8, complete=0, sack=1, passer="qb2"),
+            ],
+        )
+
+        assert result["SEA"]["QB"]["long_pass"] == pytest.approx(30.0)
+
+    def test_a_game_without_a_completion_is_a_zero_long_pass(self):
+        result = allowed_of(
+            [
+                line("qb1", game="g1", team="NE", opponent="SEA", position="QB"),
+                line("qb2", game="g2", team="DAL", opponent="SEA", position="QB"),
+            ],
+            [
+                catch("wr1", game="g1", gained=30, passer="qb1"),
+                catch("wr2", game="g2", gained=30, complete=0, passer="qb2"),
+            ],
+        )
+
+        assert result["SEA"]["QB"]["long_pass"] == pytest.approx(15.0)
+
     def test_a_scramble_is_a_rush_for_long_rush(self):
         """The box score counts scrambles as carries; the long has to agree."""
         result = allowed_of(
@@ -343,6 +378,25 @@ class TestAllowsRows:
         rb_receiving = tables["SEA"]["receiving"][2].stats["ppr"]
         rb_rushing = tables["SEA"]["rushing"][1].stats["ppr"]
         assert rb_receiving.value == rb_rushing.value == 21.5
+
+    def test_passing_ranks_the_long_pass_allowed_most_first(self):
+        tables = allows_rows(
+            allowed_of(
+                [
+                    line(f"qb_{team}", game=f"g_{team}", team="NE", opponent=team, position="QB")
+                    for team in ("DAL", "NYG", "SEA")
+                ],
+                [
+                    catch("wr1", game="g_DAL", gained=25, passer="qb_DAL"),
+                    catch("wr1", game="g_NYG", gained=61, passer="qb_NYG"),
+                    catch("wr1", game="g_SEA", gained=38, passer="qb_SEA"),
+                ],
+            )
+        )
+
+        cell = tables["SEA"]["passing"][0].stats["long_pass"]
+        assert (cell.value, cell.rank) == (38.0, 2)
+        assert tables["NYG"]["passing"][0].stats["long_pass"].rank == 1
 
 
 def lines_of(weekly_rows, play_rows=(), current=None, **kwargs):
@@ -456,6 +510,21 @@ class TestPlayerLines:
         )
 
         assert result["NE"]["receiving"][0].stats["long_rec"] == pytest.approx(15.0)
+
+    def test_the_quarterbacks_line_carries_his_long_pass(self):
+        result = lines_of(
+            [
+                line("qb1", game="g1", team="NE", position="QB", attempts=30),
+                line("qb1", game="g2", team="NE", position="QB", attempts=30),
+            ],
+            [
+                catch("wr1", game="g1", gained=50, passer="qb1"),
+                catch("wr1", game="g2", gained=22, passer="qb1"),
+                catch("wr1", game="g2", gained=9, passer="qb1"),
+            ],
+        )
+
+        assert result["NE"]["passing"][0].stats["long_pass"] == pytest.approx(36.0)
 
 
 class TestSide:

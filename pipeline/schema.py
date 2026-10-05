@@ -202,7 +202,7 @@ class KickerRow(Base):
 #: stat keys its cells carry, both in display order. The renderer mirrors these
 #: keys in `trun_dvp_sections()`, so renaming one is a contract change.
 DVP_SECTIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
-    "passing": (("QB",), ("pass_yds", "comp", "att", "pass_td", "int", "ppr")),
+    "passing": (("QB",), ("pass_yds", "comp", "att", "pass_td", "int", "long_pass", "ppr")),
     "receiving": (
         ("WR", "TE", "RB"),
         ("rec", "rec_yds", "rec_td", "rz_tgt", "long_rec", "ppr"),

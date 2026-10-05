@@ -70,9 +70,9 @@ BOX_SCORE: Final[dict[str, str]] = {
 PLAY_COUNTS: Final[tuple[str, ...]] = ("rz_tgt", "rz_car")
 
 #: The longest gain in a game. Averaged over games rather than taken as a
-#: season maximum: that is the number a Longest Reception prop prices, and a
-#: season maximum describes one play.
-LONGS: Final[tuple[str, ...]] = ("long_rec", "long_rush")
+#: season maximum: that is the number a Longest Reception (or Completion)
+#: prop prices, and a season maximum describes one play.
+LONGS: Final[tuple[str, ...]] = ("long_pass", "long_rec", "long_rush")
 
 STATS: Final[tuple[str, ...]] = (*BOX_SCORE, *PLAY_COUNTS, *LONGS)
 
@@ -144,7 +144,8 @@ def _play_level(plays: pl.DataFrame) -> pl.DataFrame:
     receiver, no sack, no two-point try. A red zone carry is a designed run,
     as the Inside 5 column counts it -- scrambles and kneels are out, a sneak
     is in. The longest rush is different on purpose: the box score counts a
-    scramble as a carry, so the long has to as well.
+    scramble as a carry, so the long has to as well. The longest pass is the
+    passer's longest completion, the catch seen from the other end.
     """
     live = plays.filter(
         (pl.col("season_type") == pbp_source.REGULAR_SEASON)
@@ -169,6 +170,18 @@ def _play_level(plays: pl.DataFrame) -> pl.DataFrame:
         .rename({"receiver_player_id": "player_id"})
     )
 
+    passing = (
+        live.filter(
+            (pl.col("play_type") == "pass")
+            & pl.col("passer_player_id").is_not_null()
+            & (pl.col("sack").fill_null(0) == 0)
+            & (pl.col("complete_pass").fill_null(0) == 1)
+        )
+        .group_by(["passer_player_id", "game_id"])
+        .agg(long_pass=pl.col("yards_gained").max().cast(pl.Float64))
+        .rename({"passer_player_id": "player_id"})
+    )
+
     runs = live.filter(
         (pl.col("play_type") == "run")
         & pl.col("rusher_player_id").is_not_null()
@@ -183,7 +196,10 @@ def _play_level(plays: pl.DataFrame) -> pl.DataFrame:
         .rename({"rusher_player_id": "player_id"})
     )
 
-    return receiving.join(rushing, on=["player_id", "game_id"], how="full", coalesce=True)
+    return (
+        receiving.join(rushing, on=["player_id", "game_id"], how="full", coalesce=True)
+        .join(passing, on=["player_id", "game_id"], how="full", coalesce=True)
+    )
 
 
 def allowed(games: pl.DataFrame) -> dict[str, dict[str, dict[str, float]]]:
