@@ -67,7 +67,7 @@ I can do everything up to the point of needing these, then stop.
 | Injuries — game status + note | **ESPN public API** `site.api.espn.com/.../nfl/injuries` | ✅ tested: all 32 teams, status + `shortComment` |
 | Injuries — practice participation (DNP/LP/FP) | `load_injuries()` | ⚠️ `injuries_2025.parquet` exists but last updated Mar 2026 — *enrichment only*, never a hard dependency |
 | Weather | Open-Meteo forecast + 32-stadium lat/long lookup | free, no key; only valid inside 16 days |
-| Team colors / logos | `nfldata` `teamcolors.csv`, `logos.csv` | ✅ used for per-game theming |
+| Team colors | `nfldata` `teamcolors.csv` | ✅ used for per-game theming (logos removed 2026-10-24: no league images on the page) |
 
 **Not available at any price we're paying:** true TPRR needs charted routes run (PFF/FTN/SIS). Shipping a labeled proxy instead — see Metric Definitions.
 

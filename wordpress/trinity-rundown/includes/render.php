@@ -115,11 +115,16 @@ function trun_render_game( array $game ): string {
 }
 
 /**
- * Who is playing: logo, name, straight-up record, moneyline, per side.
+ * Who is playing: a badge (the abbreviation in the team's color), name,
+ * straight-up record, moneyline, per side.
  *
- * The payload has carried records, moneylines and logos since Phase 1 and the
- * page showed none of them -- a reader arrived at a stat table without being
- * told whose. This is the mockup's top block.
+ * The payload has carried records and moneylines since Phase 1 and the page
+ * showed neither -- a reader arrived at a stat table without being told
+ * whose. This is the mockup's top block.
+ *
+ * No league or team images, as on the NBA Rundown and NHL dashboard: the
+ * name, abbreviation and colors identify the team. A `logo` still sitting in
+ * a stored payload is never read.
  */
 function trun_render_teambar( array $game ): string {
 	$sides = [
@@ -132,7 +137,7 @@ function trun_render_teambar( array $game ): string {
 	<div class="trun-teambar">
 		<?php foreach ( $sides as $side => $role ) : ?>
 			<?php
-			$logo = esc_url( (string) trun_get( $game, $side . '.logo', '' ) );
+			$abbr = (string) trun_get( $game, $side . '.abbr', '' );
 			$meta = array_filter(
 				[
 					(string) trun_get( $game, $side . '.record', '' ),
@@ -141,14 +146,13 @@ function trun_render_teambar( array $game ): string {
 			);
 			?>
 			<div class="trun-teambar__side trun-teambar__side--<?php echo esc_attr( $side ); ?>">
-				<?php if ( $logo ) : ?>
+				<?php if ( '' !== $abbr ) : ?>
 					<?php /* Decorative: the team's name is the next element along. */ ?>
-					<img class="trun-teambar__logo" src="<?php echo $logo; ?>"
-						alt="" width="48" height="48" loading="lazy" decoding="async">
+					<span class="trun-teambar__badge" aria-hidden="true"><?php echo esc_html( $abbr ); ?></span>
 				<?php endif; ?>
 				<span class="trun-teambar__role"><?php echo esc_html( $role ); ?></span>
 				<span class="trun-teambar__name">
-					<?php echo esc_html( (string) trun_get( $game, $side . '.name', trun_get( $game, $side . '.abbr', '' ) ) ); ?>
+					<?php echo esc_html( (string) trun_get( $game, $side . '.name', $abbr ) ); ?>
 				</span>
 				<?php if ( $meta ) : ?>
 					<span class="trun-teambar__meta"><?php echo esc_html( implode( ' · ', $meta ) ); ?></span>
@@ -1771,9 +1775,18 @@ function trun_render_footer( array $games ): string {
 		);
 	}
 
-	return $parts
+	$out = $parts
 		? '<p class="trun-footer">' . esc_html( implode( ' | ', $parts ) ) . '</p>'
 		: '';
+
+	return $out . '<p class="trun-disclaimer">' . esc_html( trun_disclaimer() ) . '</p>';
+}
+
+/**
+ * The non-affiliation line under every week (the NBA Rundown's wording).
+ */
+function trun_disclaimer(): string {
+	return __( 'Not affiliated with or endorsed by the NFL, its teams or players, or any sportsbook. Team names are used only to identify the teams.', 'trinity-rundown' );
 }
 
 /* -------------------------------------------------------------------------
@@ -2101,6 +2114,12 @@ function trun_team_color_vars( array $game ): string {
 		}
 		$vars .= '--trun-' . $side . ':' . $hex . ';';
 		$vars .= '--trun-' . $side . '-ink:' . trun_ink_for( $hex ) . ';';
+		// The badge's letters are always white; a light color gets a darker
+		// fill for the badge alone.
+		$badge = trun_darken_for_white( $hex );
+		if ( $badge !== $hex ) {
+			$vars .= '--trun-' . $side . '-badge:' . $badge . ';';
+		}
 	}
 
 	return $vars;
@@ -2130,6 +2149,30 @@ function trun_hex( $value ): string {
  */
 function trun_ink_for( string $hex ): string {
 	return trun_luminance( $hex ) > 0.1791 ? '#000000' : '#ffffff';
+}
+
+/**
+ * The color itself if white text reads on it at 4.5:1, else the same hue
+ * darkened until it does. For the team badge, whose letters are always white.
+ */
+function trun_darken_for_white( string $hex ): string {
+	$limit = ( 1.05 / 4.5 ) - 0.05;
+	if ( trun_luminance( $hex ) <= $limit ) {
+		return $hex;
+	}
+
+	$rgb = [ hexdec( substr( $hex, 1, 2 ) ), hexdec( substr( $hex, 3, 2 ) ), hexdec( substr( $hex, 5, 2 ) ) ];
+	for ( $keep = 0.98; $keep > 0; $keep -= 0.02 ) {
+		$out = '#';
+		foreach ( $rgb as $channel ) {
+			$out .= sprintf( '%02x', (int) floor( $channel * $keep ) );
+		}
+		if ( trun_luminance( $out ) <= $limit ) {
+			return $out;
+		}
+	}
+
+	return '#000000';
 }
 
 /**
