@@ -524,7 +524,8 @@ like a structural placeholder, and two things it had never shown are on it.
 *The header the payload was already carrying.* `ats_record`, `ou_record`,
 `moneyline` and `logo` have been in every payload since Phase 1, and the front
 end rendered none of them -- a reader met a stat table without being told whose
-it was. There is now a team bar (logo, name, straight-up record, moneyline) and
+it was. There is now a team bar (logo -- since removed, see below -- name,
+straight-up record, moneyline) and
 a season ATS / over-under strip. The straight-up record is new in the pipeline:
 `records.py` tallies it in the same pass as the other two, outside both line
 guards, because a game the book never posted still had a winner.
@@ -699,3 +700,11 @@ moment Week 2 opens without a re-recorded fixture, and recording now costs the
 full 19 credits rather than 3, since a recording always probes team totals. The
 `/health` probe's missing retry, which cost one build at 02:45 UTC on
 2026-09-08, was fixed in `90efc81`.
+
+**No league images (0.13.0, 2026-10-24).** Following the NHL dashboard and the
+NBA Rundown, the team bar no longer shows NFL logos. Each side shows its
+abbreviation in a circle of its team colour with white letters; a colour too
+light for white text gets a darker fill for the badge alone
+(`trun_darken_for_white()`). The pipeline stops collecting the logo URL, and a
+`logo` still in a stored payload is never read. Every week now ends with a
+non-affiliation line under the odds credit (`trun_disclaimer()`).

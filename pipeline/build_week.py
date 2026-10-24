@@ -115,7 +115,6 @@ def _team(abbr: str, meta: dict, *, moneyline: int | None) -> Team:
         name=info.get("name") or abbr,
         color=info.get("color"),
         color2=info.get("color2"),
-        logo=info.get("logo"),
         moneyline=moneyline,
     )
 

@@ -207,7 +207,7 @@
 
 /*
  * Who is playing, before any number about them. Each side is a small grid:
- * the logo spans both text rows, so the name and the record/moneyline line up
+ * the badge spans the text rows, so the name and the record/moneyline line up
  * against it rather than floating.
  */
 .trun-teambar {
@@ -221,9 +221,9 @@
 	display: grid;
 	grid-template-columns: auto 1fr;
 	grid-template-areas:
-		"logo role"
-		"logo name"
-		"logo meta";
+		"badge role"
+		"badge name"
+		"badge meta";
 	align-items: center;
 	column-gap: 0.75rem;
 	padding: 0.625rem 0.75rem;
@@ -243,11 +243,35 @@
 	--trun-side: var(--trun-home);
 }
 
-.trun-teambar__logo {
-	grid-area: logo;
-	width: 44px;
-	height: 44px;
-	object-fit: contain;
+/*
+ * The team's abbreviation in a circle of its color, in place of a logo: the
+ * page shows no league or team images. Letters are always white; a light
+ * team color gets a darker fill (--trun-*-badge, from trun_team_color_vars()).
+ * The ring keeps navy and near-black fills visible on the black page.
+ */
+.trun-teambar__side--away {
+	--trun-side-badge: var(--trun-away-badge, var(--trun-away));
+}
+
+.trun-teambar__side--home {
+	--trun-side-badge: var(--trun-home-badge, var(--trun-home));
+}
+
+.trun-teambar__badge {
+	grid-area: badge;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.75rem;
+	height: 2.75rem;
+	border-radius: 50%;
+	background: var(--trun-side-badge, #3a3a3a);
+	color: #fff;
+	box-shadow: 0 0 0 2px var(--trun-border);
+	font-size: 0.8125rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	line-height: 1;
 }
 
 .trun-teambar__role {
@@ -849,12 +873,24 @@
 	color: var(--trun-muted);
 }
 
-.trun-footer {
+.trun-footer,
+.trun-disclaimer {
 	font-size: 0.8125rem;
 	color: var(--trun-muted);
 	margin-block-start: 2rem;
 	padding-block-start: 0.75rem;
 	border-block-start: 1px solid var(--trun-border);
+}
+
+.trun-disclaimer {
+	font-size: 0.75rem;
+}
+
+/* Under the odds credit, one footer, not two. */
+.trun-footer + .trun-disclaimer {
+	margin-block-start: 0.25rem;
+	padding-block-start: 0;
+	border-block-start: 0;
 }
 
 .trun-empty {
@@ -867,6 +903,12 @@
 /* ---------- Narrow containers: tables become stacked cards ---------- */
 
 @container (max-width: 640px) {
+	.trun-teambar__badge {
+		width: 2.375rem;
+		height: 2.375rem;
+		font-size: 0.75rem;
+	}
+
 	/*
 	 * The injury table reflows into one card per player.
 	 *
@@ -1088,9 +1130,10 @@
 		display: block;
 	}
 
-	/* Logos cost ink and say nothing the name beside them does not. */
-	.trun-teambar__logo {
-		display: none;
+	.trun-teambar__badge {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		box-shadow: none;
 	}
 
 	.trun-teambar__side {
